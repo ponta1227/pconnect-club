@@ -38,9 +38,11 @@ async function clientKey(): Promise<string> {
 /** PINの失敗が多すぎないか（10分間に5回まで） */
 export async function pinAttemptsExceeded(): Promise<boolean> {
   const key = await clientKey()
-  const [{ count }] = await sql<{ count: number }[]>`
-    select count(*)::int as count from rate_limits where key = ${key} and created_at > now() - interval '10 minutes'`
-  return count >= 5
+  const [{ mine, total }] = await sql<{ mine: number; total: number }[]>`
+    select count(*) filter (where key = ${key})::int as mine, count(*)::int as total
+    from rate_limits where key like 'kiosk-pin:%' and created_at > now() - interval '10 minutes'`
+  // 端末ごとに10分5回、全体でも10分20回まで（IPを変えての総当たり対策）
+  return mine >= 5 || total >= 20
 }
 
 export async function recordPinFailure() {

@@ -35,7 +35,7 @@ export async function fetchMessages(roomId: string, opts: { after?: Date | null;
         (select count(*)::int from chat_members cm where cm.room_id = m.room_id and cm.profile_id is distinct from m.sender_id and cm.last_read_at >= m.created_at) as read_count
       from chat_messages m
       left join profiles p on p.id = m.sender_id
-      left join chat_messages r on r.id = m.reply_to
+      left join chat_messages r on r.id = m.reply_to and r.room_id = m.room_id
       left join profiles rp on rp.id = r.sender_id
       where m.room_id = ${roomId}
         and (${after}::timestamptz is null or m.created_at > ${after}::timestamptz)

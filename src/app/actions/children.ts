@@ -68,7 +68,10 @@ export async function revokeChildAccount(childId: string) {
   const rows = await sql<{ profile_id: string }[]>`
     update child_accounts set status = 'revoked' where child_id = ${childId} and status in ('pending', 'active')
     returning profile_id`
-  for (const r of rows) await sql`delete from sessions where profile_id = ${r.profile_id}`
+  for (const r of rows) {
+    await sql`delete from sessions where profile_id = ${r.profile_id}`
+    await sql`delete from chat_members where profile_id = ${r.profile_id}`
+  }
   refresh()
 }
 

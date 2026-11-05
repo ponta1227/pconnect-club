@@ -6,7 +6,9 @@ import { fetchMessages, markRoomRead } from '@/lib/chat'
 // チャットの新着取得（画面から数秒ごとに呼ぶ）。取得と同時に既読にする。
 export async function GET(req: NextRequest, ctx: RouteContext<'/api/chat/[id]/messages'>) {
   const user = await getCurrentUser()
-  if (!user) return new NextResponse('Unauthorized', { status: 401 })
+  if (!user || !user.termsAgreedAt || (user.isChild && user.childAccount?.status !== 'active')) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
   const { id } = await ctx.params
   if (!/^[0-9a-f-]{36}$/.test(id) || !(await isRoomMember(user.id, id))) return new NextResponse('Not found', { status: 404 })
   const sp = req.nextUrl.searchParams

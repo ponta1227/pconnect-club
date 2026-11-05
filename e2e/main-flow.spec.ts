@@ -200,6 +200,15 @@ test.describe.serial('主要フロー', () => {
     await expect(child.getByRole('heading', { name: '参加者' })).toHaveCount(0)
     await child.goto('/members')
     await expect(child).toHaveURL(/\/$/)
+
+    // 保護者が無効にしたら、APIからも何も読めない
+    await parent.goto('/children')
+    await parent.locator('section').filter({ hasText: '山田太郎' }).filter({ hasText: '利用中' }).getByRole('button', { name: '無効にする' }).click()
+    await expect(parent.locator('section').filter({ hasText: '山田太郎' }).getByRole('button', { name: '子どもアカウントを作る' })).toBeVisible()
+    const api = await child.request.get('/api/chat/00000000-0000-0000-0000-000000000000/messages')
+    expect(api.status()).toBe(401)
+    await child.goto('/')
+    await expect(child).toHaveURL(/\/login|\/pending/)
   })
 
   test('掲示板：緊急投稿＋アンケート、既読・コメント・スタンプ', async () => {

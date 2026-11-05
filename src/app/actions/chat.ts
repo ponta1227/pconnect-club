@@ -25,6 +25,10 @@ export async function sendMessage(raw: z.input<typeof SendInput>) {
   const body = v.body.trim()
   if (!body && v.attachments.length === 0) throw new Error('メッセージを入力してください')
 
+  if (v.replyTo) {
+    const [r] = await sql`select 1 from chat_messages where id = ${v.replyTo} and room_id = ${v.roomId}`
+    if (!r) throw new Error('返信先のメッセージが見つかりません')
+  }
   const memberIds = new Set((await sql<{ profile_id: string }[]>`select profile_id from chat_members where room_id = ${v.roomId}`).map((r) => r.profile_id))
   const mentions = v.mentions.filter((m) => memberIds.has(m) && m !== user.id)
 

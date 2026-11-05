@@ -53,6 +53,7 @@ export async function rejectChildAccount(profileId: string) {
   await admin()
   await sql`update child_accounts set status = 'revoked' where profile_id = ${profileId}`
   await sql`delete from sessions where profile_id = ${profileId}`
+  await sql`delete from chat_members where profile_id = ${profileId}`
   refresh()
 }
 
@@ -89,7 +90,10 @@ export async function saveChild(formData: FormData) {
       if (v.status !== 'active') {
         const revoked = await tx<{ profile_id: string }[]>`
           update child_accounts set status = 'revoked' where child_id = ${id} and status in ('pending', 'active') returning profile_id`
-        for (const r of revoked) await tx`delete from sessions where profile_id = ${r.profile_id}`
+        for (const r of revoked) {
+          await tx`delete from sessions where profile_id = ${r.profile_id}`
+          await tx`delete from chat_members where profile_id = ${r.profile_id}`
+        }
       }
       await tx`delete from child_classes where child_id = ${id}`
     } else {

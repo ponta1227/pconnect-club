@@ -27,8 +27,12 @@ export async function runGradePromotion(opts: { force?: boolean; now?: Date } = 
     const promoted = await tx`update children set grade = grade + 1 where status = 'active' and grade between 1 and 11`
     await tx`update app_settings set last_promotion_year = ${year}, updated_at = now() where id = 1`
     // 卒業した子の子どもアカウントは無効化
-    await tx`update child_accounts set status = 'revoked' where status in ('pending', 'active')
-      and child_id in (select id from children where status = 'graduated')`
+    const revoked = await tx<{ profile_id: string }[]>`update child_accounts set status = 'revoked' where status in ('pending', 'active')
+      and child_id in (select id from children where status = 'graduated') returning profile_id`
+    for (const r of revoked) {
+      await tx`delete from sessions where profile_id = ${r.profile_id}`
+      await tx`delete from chat_members where profile_id = ${r.profile_id}`
+    }
     return { promoted: promoted.count, graduated: graduated.map((g) => g.full_name) }
   })
 

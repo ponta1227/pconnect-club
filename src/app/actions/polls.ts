@@ -16,6 +16,10 @@ async function loadPollForUser(pollId: string, user: CurrentUser) {
     select id, owner_type, owner_id, question, kind, multiple, anonymous, closes_at, closed_at from polls where id = ${pollId}`
   if (!p) throw new Error('投票が見つかりません')
   if (p.owner_type === 'room' && !(await isRoomMember(user.id, p.owner_id))) throw new Error('このルームのメンバーではありません')
+  if (p.owner_type === 'post') {
+    const [post] = await sql`select 1 from posts where id = ${p.owner_id} and published_at is not null`
+    if (!post && !user.isAdmin) throw new Error('投票が見つかりません')
+  }
   return p
 }
 
@@ -49,6 +53,7 @@ export async function vote(pollId: string, raw: z.input<typeof VoteInput>) {
 export async function closePoll(pollId: string) {
   const user = await requireUser()
   assertAdmin(user)
+  await loadPollForUser(pollId, user)
   await sql`update polls set closed_at = now() where id = ${pollId}`
   refresh()
 }
@@ -57,6 +62,7 @@ export async function closePoll(pollId: string) {
 export async function remindPoll(pollId: string) {
   const user = await requireUser()
   assertAdmin(user)
+  await loadPollForUser(pollId, user)
   const n = await sendPollReminder(pollId)
   refresh()
   return { sent: n }
@@ -81,6 +87,7 @@ export async function sendPollReminder(pollId: string): Promise<number> {
 export async function convertScheduleToEvent(pollId: string, optionId: string) {
   const user = await requireUser()
   assertAdmin(user)
+  await loadPollForUser(pollId, user)
   const [o] = await sql<{ starts_at: Date | null; question: string }[]>`
     select o.starts_at, p.question from poll_options o join polls p on p.id = o.poll_id where o.id = ${optionId} and p.id = ${pollId}`
   if (!o?.starts_at) throw new Error('日時が見つかりません')

@@ -141,6 +141,8 @@ export async function deleteComment(commentId: string) {
 export async function toggleReaction(postId: string, emoji: string) {
   const user = await requireUser()
   if (!REACTIONS.includes(emoji)) throw new Error('このスタンプは使えません')
+  const [post] = await sql`select 1 from posts where id = ${postId} and published_at is not null`
+  if (!post) throw new Error('投稿が見つかりません')
   const [existing] = await sql`select 1 from post_reactions where post_id = ${postId} and profile_id = ${user.id} and emoji = ${emoji}`
   if (existing) await sql`delete from post_reactions where post_id = ${postId} and profile_id = ${user.id} and emoji = ${emoji}`
   else await sql`insert into post_reactions (post_id, profile_id, emoji) values (${postId}, ${user.id}, ${emoji}) on conflict do nothing`

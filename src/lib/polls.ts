@@ -87,7 +87,8 @@ export async function pollsFor(ownerType: 'post' | 'room', ownerIds: string[], u
           maybe: ov.filter((v) => v.value === 'maybe').length,
           no: ov.filter((v) => v.value === 'no').length,
           // 記名投票のみ回答者名を出す（匿名は管理者にも出さない）
-          voters: p.anonymous ? [] : ov.map((v) => ({ name: v.name ?? '退会したメンバー', value: v.value })),
+          // 子どもアカウントには他の人の名前を見せない
+          voters: p.anonymous || user.isChild ? [] : ov.map((v) => ({ name: v.name ?? '退会したメンバー', value: v.value })),
         }
       }),
     })
