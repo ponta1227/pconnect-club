@@ -2,7 +2,9 @@
 -- すべてのテーブルでRLSを有効化し、ポリシーは作らない（= anon / authenticated からは一切読めない）。
 -- アプリはサーバー側から postgres ロール（DATABASE_URL）で接続し、認可はサーバーコード（src/lib/access.ts ほか）で行う。
 
-create extension if not exists pg_trgm;
+-- Supabase の推奨どおり拡張機能は extensions スキーマに置く
+create schema if not exists extensions;
+create extension if not exists pg_trgm with schema extensions;
 
 -- ---------------------------------------------------------------- アカウント
 create table profiles (
@@ -153,8 +155,8 @@ create table events (
 );
 create index events_starts_idx on events (starts_at);
 create index events_series_idx on events (series_id);
-create index events_title_trgm on events using gin (title gin_trgm_ops);
-create index events_note_trgm on events using gin (note gin_trgm_ops);
+create index events_title_trgm on events using gin (title extensions.gin_trgm_ops);
+create index events_note_trgm on events using gin (note extensions.gin_trgm_ops);
 
 create table event_classes (
   event_id uuid not null references events on delete cascade,
@@ -215,8 +217,8 @@ create table posts (
   updated_at timestamptz not null default now()
 );
 create index posts_published_idx on posts (published_at desc);
-create index posts_title_trgm on posts using gin (title gin_trgm_ops);
-create index posts_body_trgm on posts using gin (body gin_trgm_ops);
+create index posts_title_trgm on posts using gin (title extensions.gin_trgm_ops);
+create index posts_body_trgm on posts using gin (body extensions.gin_trgm_ops);
 
 create table post_classes (
   post_id uuid not null references posts on delete cascade,
@@ -280,7 +282,7 @@ create table chat_messages (
   deleted_at timestamptz
 );
 create index chat_messages_room_idx on chat_messages (room_id, created_at);
-create index chat_messages_body_trgm on chat_messages using gin (body gin_trgm_ops);
+create index chat_messages_body_trgm on chat_messages using gin (body extensions.gin_trgm_ops);
 
 create table chat_notes (
   room_id uuid primary key references chat_rooms on delete cascade,
@@ -306,7 +308,7 @@ create table polls (
   created_at timestamptz not null default now()
 );
 create index polls_owner_idx on polls (owner_type, owner_id);
-create index polls_question_trgm on polls using gin (question gin_trgm_ops);
+create index polls_question_trgm on polls using gin (question extensions.gin_trgm_ops);
 
 create table poll_options (
   id uuid primary key default gen_random_uuid(),
@@ -365,7 +367,7 @@ create table documents (
   created_by uuid references profiles on delete set null,
   created_at timestamptz not null default now()
 );
-create index documents_title_trgm on documents using gin (title gin_trgm_ops);
+create index documents_title_trgm on documents using gin (title extensions.gin_trgm_ops);
 
 create table document_classes (
   document_id uuid not null references documents on delete cascade,
