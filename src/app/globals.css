@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/* ブランドカラーはここを差し替えるだけで全体に反映される */
+:root {
+  --brand: #1e6fd9;
+  --brand-dark: #1558b0;
+  --brand-soft: #e8f1fc;
+  --danger: #d93b3b;
+  --danger-soft: #fdecec;
+  --ok: #2e9e5b;
+  --ok-soft: #e7f6ee;
+  --warn: #c77700;
+  --warn-soft: #fff4e0;
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --text: #1c2430;
+  --muted: #6b7686;
+  --line: #e3e7ee;
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-soft: var(--brand-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --font-sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+html[data-font="large"] {
+  font-size: 18.5px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 共通部品（@utility なので他の部品から @apply できる） */
+@utility card {
+  @apply rounded-2xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.06)] border border-line;
+}
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 text-[0.95rem] font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100;
+}
+@utility btn-primary {
+  @apply btn bg-brand text-white hover:bg-brand-dark;
+}
+@utility btn-secondary {
+  @apply btn bg-white text-text border border-line hover:bg-bg;
+}
+@utility btn-danger {
+  @apply btn bg-danger text-white;
+}
+@utility btn-ghost {
+  @apply btn text-brand hover:bg-brand-soft;
+}
+@utility btn-sm {
+  @apply min-h-9! px-3! text-sm! rounded-lg!;
+}
+@utility input {
+  @apply block w-full min-h-11 rounded-xl border border-line bg-white px-3 py-2 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20;
+}
+@utility label {
+  @apply mb-1 block text-sm font-semibold text-text;
+}
+@utility hint {
+  @apply mt-1 text-xs text-muted;
+}
+@utility badge {
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;
+}
+@utility section-title {
+  @apply px-1 pb-2 pt-4 text-sm font-bold text-muted;
+}
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+}
+
+.whitespace-pre-wrap {
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
