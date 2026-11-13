@@ -1,10 +1,18 @@
-// 仮ロゴ（P-CONNECT のロゴが届いたら差し替え）
+// クラブのロゴ。public/logo.png を置くとその画像を使い、無ければ仮のマーク（卓球台とボール）を表示する。
+// 置き方は README の「ロゴを差し替える」を参照。
+const HAS_LOGO = process.env.NEXT_PUBLIC_HAS_LOGO === '1'
+
 export function Logo({ className = 'h-10 w-10' }: { className?: string }) {
+  if (HAS_LOGO) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src="/logo.png" alt="P-CONNECT Jr." className={`${className} rounded-xl object-contain`} />
+  }
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden>
-      <rect width="64" height="64" rx="16" fill="var(--brand)" />
-      <circle cx="44" cy="20" r="6" fill="#fff" />
-      <path d="M20 48V16h11a9 9 0 0 1 0 18H20" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+      <rect width="64" height="64" rx="15" fill="#1c4fa0" />
+      <path d="M10 39h44" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M32 39v13" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="43" cy="22" r="8" fill="#f59a23" />
     </svg>
   )
 }

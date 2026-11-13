@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import "@fontsource/barlow-semi-condensed/latin-600.css";
+import "@fontsource/barlow-semi-condensed/latin-700.css";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -15,7 +17,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#1e6fd9",
+  themeColor: "#1c4fa0",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

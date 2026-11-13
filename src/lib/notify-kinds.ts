@@ -7,7 +7,7 @@ export const NOTIFY_KINDS = {
   chat: { label: 'チャットの新着', push: true, email: false, adminOnly: false },
   mention: { label: 'チャットでのメンション', push: true, email: false, adminOnly: false },
   event: { label: '予定の新規・変更', push: true, email: false, adminOnly: false },
-  reminder: { label: '参加の締切リマインド', push: true, email: true, adminOnly: false },
+  reminder: { label: '参加・見送りの回答のお願い', push: true, email: true, adminOnly: false },
   poll: { label: 'アンケート・日程調整の催促', push: true, email: false, adminOnly: false },
   waitlist: { label: 'キャンセル待ちの繰り上げ', push: true, email: true, adminOnly: false },
   approval: { label: '承認待ちの申請', push: true, email: false, adminOnly: true },

@@ -9,10 +9,13 @@ type Opt = { id: string; name: string }
 
 export function PostForm({
   classes,
+  events = [],
   initial,
 }: {
   classes: Opt[]
-  initial: { id?: string; title: string; body: string; class_ids: string[]; urgent: boolean; pinned: boolean; attachments: UploadedFile[]; published: boolean }
+  /** 添付できる予定（大会・イベント）。label は「12/3(木) 市民大会」のような表示用 */
+  events?: { id: string; label: string }[]
+  initial: { id?: string; title: string; body: string; class_ids: string[]; urgent: boolean; pinned: boolean; attachments: UploadedFile[]; published: boolean; event_id?: string | null }
 }) {
   const [state, action, pending] = useActionState<PostFormState, FormData>(savePost, undefined)
   const [urgent, setUrgent] = useState(initial.urgent)
@@ -33,6 +36,18 @@ export function PostForm({
           <span className="label">添付</span>
           <Uploader purpose="post" initial={initial.attachments} />
         </div>
+        {events.length > 0 && (
+          <label className="block">
+            <span className="label">予定を付ける</span>
+            <select name="event_id" className="input" defaultValue={initial.event_id ?? ''}>
+              <option value="">付けない</option>
+              {events.map((e) => (
+                <option key={e.id} value={e.id}>{e.label}</option>
+              ))}
+            </select>
+            <span className="hint block">大会・イベントを付けると、保護者はこのお知らせの中で「参加する／見送る」を回答できます。</span>
+          </label>
+        )}
         {classes.length > 0 && (
           <div>
             <span className="label">対象クラス（通知の送り先）</span>

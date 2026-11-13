@@ -24,6 +24,6 @@ export async function participants(eventId: string): Promise<ParticipantRow[]> {
         where gc.child_id = c.id and gc.status = 'approved' and p.deleted_at is null), '{}') as guardians,
       r.paid, r.payment_note
     from rsvps r join children c on c.id = r.child_id
-    where r.event_id = ${eventId}
+    where r.event_id = ${eventId} and r.status <> 'declined'
     order by r.status, c.grade desc, c.kana`
 }

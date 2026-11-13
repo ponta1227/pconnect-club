@@ -2,6 +2,7 @@ import { BottomNav } from '@/components/bottom-nav'
 import { PushRegistrar } from '@/components/push'
 import { requireUser } from '@/lib/auth'
 import { sql } from '@/lib/db'
+import { getTodos } from '@/lib/todo'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser()
@@ -18,6 +19,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         where m.created_at > cm.last_read_at and m.deleted_at is null and m.sender_id is distinct from ${user.id}) as chat,
       (select count(*)::int from chat_members where profile_id = ${user.id}) as rooms`
 
+  const todos = await getTodos()
+
   // 子どもアカウントは、管理者に追加されたルームがあるときだけチャットのタブを出す
   const showChat = !user.isChild || counts.rooms > 0
 
@@ -25,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <>
       {children}
       <PushRegistrar />
-      <BottomNav showChat={showChat} chatUnread={counts.chat} boardUnread={counts.board} />
+      <BottomNav showChat={showChat} chatUnread={counts.chat} boardUnread={counts.board} todoCount={todos.count} />
     </>
   )
 }

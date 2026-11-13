@@ -20,6 +20,15 @@
 - 管理者でも参加していないチャットルームは見られない。
 - 新しい Server Action / API を作ったら、未ログイン・他の保護者・子どもアカウントで呼んだときに弾かれることを確認する。
 
+## 画面の考え方（v1.3 の再設計）
+- 保護者のホームは「やること」が中心。回答が必要な大会・未読のお知らせ・未回答アンケートは `src/lib/todo.ts` の `getTodos()` が決める（下のタブのバッジも同じ数）。新しく「対応が必要なもの」を増やすときはここに足す。
+- 大会・イベントの回答は `answerRsvp(eventId, childId, 'going' | 'declined')`。**未回答＝rsvps に行が無い**、見送り＝`status='declined'`。参加人数を数えるときは `declined` を除くこと。回答の部品は `src/components/rsvp.tsx`（ホーム・予定・掲示板で共通）。
+- 欠席・遅刻・早退は `src/components/absence.tsx`（下から出るシート）。
+- 大会を登録すると掲示板のお知らせ（`posts.event_id`）が自動で作られる。回答するとそのお知らせは既読になる。
+- 練習日程は `/admin/schedule`（`src/app/actions/schedule.ts`、「いつもの練習」は `practice_slots` テーブル）。
+- 色は「卓球台の青（brand）＝骨組み」「ボールのオレンジ（ball）＝対応が必要なところだけ」。時刻・人数などの数字には `.num` クラスを付ける。
+- ロゴは `public/logo.png` を置くと差し替わる（`src/components/logo.tsx`）。
+
 ## 通知
 `src/lib/notify.ts` の `notifyLater(受信者, 種類, {title, body, url}, opts)` を使う。
 - 種類は `src/lib/notify-kinds.ts`。子どもアカウントには `childOk: true` のときだけ届く（予定の変更・中止のみ）。

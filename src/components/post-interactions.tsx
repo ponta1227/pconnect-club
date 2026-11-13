@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { addComment, deleteComment, deletePost, togglePin, toggleReaction } from '@/app/actions/posts'
+import { addComment, deleteComment, deletePost, nudgeUnread, togglePin, toggleReaction } from '@/app/actions/posts'
 import { REACTIONS } from '@/lib/reactions'
 
 function useRun() {
@@ -90,6 +90,32 @@ export function PostAdminActions({ postId, pinned }: { postId: string; pinned: b
         削除
       </button>
       {r.error && <p className="w-full text-xs text-danger">{r.error}</p>}
+    </div>
+  )
+}
+
+/** 管理者: 未読の人にもう一度知らせる */
+export function UnreadNudge({ postId, count }: { postId: string; count: number }) {
+  const r = useRun()
+  const [sent, setSent] = useState<number | null>(null)
+  if (count === 0) return null
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        className="btn-primary w-full"
+        disabled={r.pending || sent !== null}
+        onClick={() =>
+          r.run(async () => {
+            const res = await nudgeUnread(postId)
+            setSent(res.sent)
+          })
+        }
+      >
+        未読の人にもう一度知らせる
+      </button>
+      {sent !== null && <p className="rounded-xl bg-ok-soft px-3 py-2 text-sm text-ok">{sent}人に通知を送りました</p>}
+      {r.error && <p className="text-xs text-danger">{r.error}</p>}
     </div>
   )
 }

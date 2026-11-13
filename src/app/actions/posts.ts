@@ -10,6 +10,7 @@ import { attachTo, detachMissing } from '@/lib/files'
 import { notifyLater } from '@/lib/notify'
 import { insertPoll, readPollForm } from '@/lib/poll-write'
 import { REACTIONS } from '@/lib/reactions'
+import { postUnread } from '@/lib/todo'
 
 const PostForm = z.object({
   id: z.string().uuid().optional(),
@@ -20,6 +21,7 @@ const PostForm = z.object({
   pinned: z.boolean(),
   publish: z.boolean(),
   attachments: z.array(z.string()),
+  event_id: z.string().uuid().nullable(),
 })
 
 export type PostFormState = { error?: string } | undefined
@@ -36,6 +38,7 @@ export async function savePost(_prev: PostFormState, fd: FormData): Promise<Post
     pinned: fd.get('pinned') === 'on',
     publish: fd.get('intent') !== 'draft',
     attachments: fd.getAll('attachments').map(String),
+    event_id: fd.get('event_id') || null,
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? '入力内容を確認してください' }
   const v = parsed.data
@@ -62,15 +65,15 @@ export async function savePost(_prev: PostFormState, fd: FormData): Promise<Post
         const publishedAt = v.publish ? (cur.published_at ?? now) : null
         await tx`
           update posts set title = ${v.title}, body = ${v.body}, urgent = ${v.urgent}, pinned = ${v.pinned},
-            pinned_at = ${pinnedAt}, published_at = ${publishedAt}, updated_at = now()
+            pinned_at = ${pinnedAt}, published_at = ${publishedAt}, event_id = ${v.event_id}, updated_at = now()
           where id = ${v.id}`
         postId = v.id
         await tx`delete from post_classes where post_id = ${postId}`
         await detachMissing(tx, 'post', postId, v.attachments.filter((x) => /^[0-9a-f-]{36}$/.test(x)))
       } else {
         const [p] = await tx<{ id: string }[]>`
-          insert into posts (title, body, urgent, pinned, pinned_at, published_at, created_by)
-          values (${v.title}, ${v.body}, ${v.urgent}, ${v.pinned}, ${v.pinned ? new Date() : null}, ${v.publish ? new Date() : null}, ${user.id})
+          insert into posts (title, body, urgent, pinned, pinned_at, published_at, event_id, created_by)
+          values (${v.title}, ${v.body}, ${v.urgent}, ${v.pinned}, ${v.pinned ? new Date() : null}, ${v.publish ? new Date() : null}, ${v.event_id}, ${user.id})
           returning id`
         postId = p.id
       }
@@ -101,6 +104,24 @@ export async function deletePost(id: string) {
   await sql`delete from polls where owner_type = 'post' and owner_id = ${id}`
   await sql`delete from posts where id = ${id}`
   redirect('/board')
+}
+
+/** 管理者: まだ読んでいない保護者・家族に、もう一度知らせる */
+export async function nudgeUnread(postId: string) {
+  const user = await requireUser()
+  assertAdmin(user)
+  const [post] = await sql<{ title: string; class_ids: string[] }[]>`
+    select p.title, coalesce((select array_agg(class_id) from post_classes pc where pc.post_id = p.id), '{}') as class_ids
+    from posts p where p.id = ${postId} and p.published_at is not null`
+  if (!post) throw new Error('投稿が見つかりません')
+  const { unread } = await postUnread(postId, post.class_ids)
+  const recipients = unread.map((u) => u.id).filter((id) => id !== user.id)
+  notifyLater(recipients, 'post', {
+    title: `まだ読んでいないお知らせがあります`,
+    body: post.title,
+    url: `/board/${postId}`,
+  })
+  return { sent: recipients.length }
 }
 
 export async function togglePin(id: string, pinned: boolean) {

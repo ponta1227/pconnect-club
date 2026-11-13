@@ -4,18 +4,18 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { IconBoard, IconCalendar, IconChat, IconHome, IconMore } from './icons'
 
-type Tab = { href: string; label: string; icon: React.ReactNode; match: (p: string) => boolean; badge?: number }
+type Tab = { href: string; label: string; icon: React.ReactNode; match: (p: string) => boolean; badge?: number; badgeLabel?: string }
 
-export function BottomNav({ showChat, chatUnread, boardUnread }: { showChat: boolean; chatUnread: number; boardUnread: number }) {
+export function BottomNav({ showChat, chatUnread, boardUnread, todoCount }: { showChat: boolean; chatUnread: number; boardUnread: number; todoCount: number }) {
   const pathname = usePathname()
   const tabs: Tab[] = [
-    { href: '/', label: 'ホーム', icon: <IconHome />, match: (p) => p === '/' },
+    { href: '/', label: 'ホーム', icon: <IconHome />, match: (p) => p === '/', badge: todoCount, badgeLabel: 'やること' },
     { href: '/events', label: '予定', icon: <IconCalendar />, match: (p) => p.startsWith('/events') },
-    { href: '/board', label: '掲示板', icon: <IconBoard />, match: (p) => p.startsWith('/board'), badge: boardUnread },
+    { href: '/board', label: '掲示板', icon: <IconBoard />, match: (p) => p.startsWith('/board'), badge: boardUnread, badgeLabel: '未読' },
     ...(showChat
-      ? [{ href: '/chat', label: 'チャット', icon: <IconChat />, match: (p: string) => p.startsWith('/chat'), badge: chatUnread }]
+      ? [{ href: '/chat', label: 'チャット', icon: <IconChat />, match: (p: string) => p.startsWith('/chat'), badge: chatUnread, badgeLabel: '未読' }]
       : []),
-    { href: '/more', label: 'その他', icon: <IconMore />, match: (p) => /^\/(more|admin|settings|albums|documents|members|children|search)/.test(p) },
+    { href: '/more', label: 'その他', icon: <IconMore />, match: (p) => /^\/(more|admin|settings|albums|documents|members|children|search|guide)/.test(p) },
   ]
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur pb-safe no-print">
@@ -26,15 +26,18 @@ export function BottomNav({ showChat, chatUnread, boardUnread }: { showChat: boo
             <li key={t.href} className="flex-1">
               <Link
                 href={t.href}
-                className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 pt-1.5 text-[0.7rem] font-semibold ${
+                aria-current={active ? 'page' : undefined}
+                className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 pt-1.5 text-[0.72rem] font-bold ${
                   active ? 'text-brand' : 'text-muted'
                 }`}
               >
+                {active && <span className="absolute inset-x-5 top-0 h-[3px] rounded-b bg-brand" aria-hidden />}
                 {t.icon}
                 <span>{t.label}</span>
                 {!!t.badge && t.badge > 0 && (
-                  <span className="absolute left-1/2 top-1 ml-2 min-w-5 rounded-full bg-danger px-1.5 text-center text-[0.65rem] leading-5 text-white">
+                  <span className="num absolute left-1/2 top-1 ml-2 min-w-5 rounded-full bg-ball px-1.5 text-center text-[0.8rem] leading-5 text-text">
                     {t.badge > 99 ? '99+' : t.badge}
+                    <span className="sr-only">件の{t.badgeLabel}</span>
                   </span>
                 )}
               </Link>

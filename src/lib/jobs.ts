@@ -8,7 +8,7 @@ import { runGradePromotion } from './promotion'
 import { removeObjects } from './storage'
 import { pollTargets } from './polls'
 
-/** 部内締め前のリマインド（未反応の子の保護者・家族へ。子どもアカウントには送らない） */
+/** 部内締め前のリマインド（未回答の子の保護者・家族へ。子どもアカウントには送らない） */
 export async function sendRsvpReminders(now = new Date()) {
   const events = await sql<{ id: string; title: string; starts_at: Date; member_deadline: Date; reminded_3d_at: Date | null; reminded_1d_at: Date | null }[]>`
     select e.id, e.title, e.starts_at, e.member_deadline, e.reminded_3d_at, e.reminded_1d_at
@@ -25,8 +25,8 @@ export async function sendRsvpReminders(now = new Date()) {
     const recipients = await guardiansOf(pending)
     if (recipients.length) {
       await notify(recipients, 'reminder', {
-        title: `参加の締切が近づいています`,
-        body: `「${e.title}」（${fmtDateTime(e.starts_at)}）の部内締めは ${fmtDateTime(e.member_deadline)} です。参加する場合は登録してください`,
+        title: `回答の締切が近づいています`,
+        body: `「${e.title}」（${fmtDateTime(e.starts_at)}）の部内締めは ${fmtDateTime(e.member_deadline)} です。「参加する」か「見送る」を回答してください`,
         url: `/events/${e.id}`,
       })
       sent += recipients.length

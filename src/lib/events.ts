@@ -43,6 +43,7 @@ export type EventDetail = EventListItem & {
   venue_id: string | null
   venue_address: string | null
   series_id: string | null
+  declined: number
   class_ids: string[]
   created_at: Date
   updated_at: Date
@@ -91,6 +92,7 @@ export async function getEvent(id: string): Promise<EventDetail | null> {
       e.note, e.meet_time, e.meet_place, e.fee_note, e.series_id, e.created_at, e.updated_at,
       (select count(*)::int from rsvps r where r.event_id = e.id and r.status = 'going') as going,
       (select count(*)::int from rsvps r where r.event_id = e.id and r.status = 'waitlist') as waitlist,
+      (select count(*)::int from rsvps r where r.event_id = e.id and r.status = 'declined') as declined,
       (select count(*)::int from arrivals a where a.event_id = e.id and a.cancelled_at is null) as arrived,
       coalesce((select array_agg(c.name order by c.sort) from event_classes ec join classes c on c.id = ec.class_id where ec.event_id = e.id), '{}') as class_names,
       coalesce((select array_agg(ec.class_id) from event_classes ec where ec.event_id = e.id), '{}') as class_ids
@@ -109,6 +111,15 @@ export async function todaysPractice(dayStart: Date, dayEnd: Date) {
     where t.uses_arrival and e.starts_at >= ${dayStart} and e.starts_at < ${dayEnd} and e.status = 'active'
     order by e.starts_at limit 1`
   return row ?? null
+}
+
+/** お知らせに添付できる予定（これからの大会・イベント。必要なら今の添付先も含める） */
+export async function attachableEvents(includeId: string | null = null) {
+  return sql<{ id: string; title: string; starts_at: Date }[]>`
+    select e.id, e.title, e.starts_at
+    from events e join event_types t on t.id = e.type_id
+    where (t.uses_rsvp and e.starts_at > now() and e.status = 'active') or e.id = ${includeId}::uuid
+    order by e.starts_at limit 50`
 }
 
 export function mapUrl(address: string | null | undefined, name: string | null | undefined): string | null {

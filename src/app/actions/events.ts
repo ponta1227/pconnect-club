@@ -5,7 +5,7 @@ import { refresh } from 'next/cache'
 import { z } from 'zod'
 import { assertAdmin, requireUser } from '@/lib/auth'
 import { sql } from '@/lib/db'
-import { adminIds, adultsForClasses, canActForChild, childAccountsForClasses, guardiansOf } from '@/lib/access'
+import { adminIds, adultsForClasses, canActForChild, childAccountsForClasses, eventTargetChildIds, guardiansOf } from '@/lib/access'
 import { attachTo, detachMissing } from '@/lib/files'
 import { notifyLater } from '@/lib/notify'
 import { expandDates, type RecurrenceRule } from '@/lib/recurrence'
@@ -43,6 +43,7 @@ const EventForm = z.object({
   count: z.string().optional().default(''),
   attachments: z.array(z.string()),
   notify: z.boolean(),
+  announce: z.boolean(),
 })
 
 function parseForm(fd: FormData) {
@@ -72,6 +73,7 @@ function parseForm(fd: FormData) {
     count: fd.get('count') ?? '',
     attachments: fd.getAll('attachments').map(String),
     notify: fd.get('notify') === 'on',
+    announce: fd.get('announce') === 'on',
   })
 }
 
@@ -159,7 +161,23 @@ export async function saveEvent(_prev: FormState, fd: FormData): Promise<FormSta
     })
     created = dates.length
 
-    if (v.notify) {
+    // 大会・イベントは、登録と同時に掲示板へ告知（予定つきの投稿）を作れる
+    if (type.uses_rsvp && v.announce) {
+      const postId = await sql.begin(async (tx) => {
+        const [p] = await tx<{ id: string }[]>`
+          insert into posts (title, body, event_id, published_at, created_by)
+          values (${v.title}, ${v.note}, ${targetId}, now(), ${user.id}) returning id`
+        for (const c of v.class_ids) await tx`insert into post_classes (post_id, class_id) values (${p.id}, ${c})`
+        // 自分で出したお知らせは既読にしておく（未読の人数に数えない）
+        await tx`insert into post_reads (post_id, profile_id) values (${p.id}, ${user.id})`
+        return p.id
+      })
+      notifyLater((await adultsForClasses(v.class_ids)).filter((id) => id !== user.id), 'post', {
+        title: v.title,
+        body: `${fmtDateTime(startsAt)} 参加・見送りの回答をお願いします${memberDeadline ? `（部内締め ${fmtDateTime(memberDeadline)}）` : ''}`,
+        url: `/board/${postId}`,
+      })
+    } else if (v.notify) {
       notifyLater(await adultsForClasses(v.class_ids), 'event', {
         title: created > 1 ? `予定が追加されました（${created}件）` : '予定が追加されました',
         body: created > 1 ? `${v.title}（${fmtDateTime(startsAt)} から）` : `${fmtDateTime(startsAt)} ${v.title}`,
@@ -248,72 +266,111 @@ async function loadRsvpEvent(eventId: string) {
   return e
 }
 
-export async function rsvp(eventId: string, childIds: string[], companions: number) {
-  const user = await requireUser()
-  const e = await loadRsvpEvent(eventId)
-  if (!user.isAdmin && !rsvpOpen(e)) throw new Error('部内締めを過ぎたため、参加登録は管理者にお問い合わせください')
-  const comp = e.allow_companions ? Math.min(20, Math.max(0, Math.floor(companions || 0))) : 0
-  for (const childId of childIds) {
-    if (!(await canActForChild(user, childId))) throw new Error('この子どもの参加登録はできません')
-  }
-  const results = await sql.begin(async (tx) => {
+type Answer = 'going' | 'declined'
+
+/** 回答を1件反映する（定員・キャンセル待ち・繰り上げを含む）。繰り上がった子のIDを返す */
+async function applyAnswer(
+  e: Awaited<ReturnType<typeof loadRsvpEvent>>,
+  userId: string,
+  childId: string,
+  answer: Answer | 'clear',
+  companions: number,
+): Promise<{ status: 'going' | 'waitlist' | 'declined' | null; promoted: string | null }> {
+  return sql.begin(async (tx) => {
     // 定員判定のため予定の行をロック
-    await tx`select id from events where id = ${eventId} for update`
-    const out: string[] = []
-    for (const childId of childIds) {
-      const [{ count }] = await tx<{ count: number }[]>`select count(*)::int as count from rsvps where event_id = ${eventId} and status = 'going'`
-      const status = placement(e.capacity, count)
-      const [row] = await tx<{ status: string }[]>`
+    await tx`select id from events where id = ${e.id} for update`
+    const [cur] = await tx<{ status: 'going' | 'waitlist' | 'declined' }[]>`
+      select status from rsvps where event_id = ${e.id} and child_id = ${childId}`
+    let status: 'going' | 'waitlist' | 'declined' | null = null
+    if (answer === 'going') {
+      if (cur && cur.status !== 'declined') {
+        status = cur.status
+        await tx`update rsvps set companions = ${companions} where event_id = ${e.id} and child_id = ${childId}`
+      } else {
+        const [{ count }] = await tx<{ count: number }[]>`select count(*)::int as count from rsvps where event_id = ${e.id} and status = 'going'`
+        status = placement(e.capacity, count)
+        await tx`
+          insert into rsvps (event_id, child_id, companions, status, created_by)
+          values (${e.id}, ${childId}, ${companions}, ${status}, ${userId})
+          on conflict (event_id, child_id) do update set status = excluded.status, companions = excluded.companions,
+            created_by = excluded.created_by, created_at = now()`
+      }
+    } else if (answer === 'declined') {
+      status = 'declined'
+      await tx`
         insert into rsvps (event_id, child_id, companions, status, created_by)
-        values (${eventId}, ${childId}, ${comp}, ${status}, ${user.id})
-        on conflict (event_id, child_id) do update set companions = excluded.companions
-        returning status`
-      out.push(row.status)
+        values (${e.id}, ${childId}, 0, 'declined', ${userId})
+        on conflict (event_id, child_id) do update set status = 'declined', companions = 0, created_by = excluded.created_by, created_at = now()`
+    } else {
+      await tx`delete from rsvps where event_id = ${e.id} and child_id = ${childId}`
     }
-    return out
+    // 参加の枠が空いたら、キャンセル待ちの先頭を繰り上げ
+    let promoted: string | null = null
+    if (cur?.status === 'going' && status !== 'going' && e.capacity != null) {
+      const [next] = await tx<{ child_id: string }[]>`
+        update rsvps set status = 'going'
+        where id = (select id from rsvps where event_id = ${e.id} and status = 'waitlist' order by created_at limit 1)
+        returning child_id`
+      promoted = next?.child_id ?? null
+    }
+    return { status, promoted }
   })
-  refresh()
-  return { waitlisted: results.filter((s) => s === 'waitlist').length }
 }
 
-export async function updateCompanions(eventId: string, childId: string, companions: number) {
+async function notifyPromoted(e: { id: string; title: string }, childId: string | null) {
+  if (!childId) return
+  const [c] = await sql<{ full_name: string }[]>`select full_name from children where id = ${childId}`
+  notifyLater(await guardiansOf([childId]), 'waitlist', {
+    title: 'キャンセル待ちから繰り上がりました',
+    body: `${c.full_name}さんが「${e.title}」に参加できるようになりました`,
+    url: `/events/${e.id}`,
+  })
+}
+
+/** 参加・見送りの回答（保護者・子ども本人・管理者の代理）。回答したら、その予定の告知も既読にする */
+export async function answerRsvp(eventId: string, childId: string, answer: Answer, companions = 0) {
+  const user = await requireUser()
+  const e = await loadRsvpEvent(eventId)
+  if (answer !== 'going' && answer !== 'declined') throw new Error('回答が正しくありません')
+  if (!(await canActForChild(user, childId))) throw new Error('この子どもの回答はできません')
+  if (!user.isAdmin && !rsvpOpen(e)) throw new Error('部内締めを過ぎたため、変更は管理者にお問い合わせください')
+  const comp = e.allow_companions && answer === 'going' ? Math.min(20, Math.max(0, Math.floor(companions || 0))) : 0
+  const r = await applyAnswer(e, user.id, childId, answer, comp)
+  await notifyPromoted(e, r.promoted)
+  await sql`
+    insert into post_reads (post_id, profile_id)
+    select id, ${user.id} from posts where event_id = ${eventId} and published_at is not null
+    on conflict do nothing`
+  refresh()
+  return { status: r.status }
+}
+
+/** 回答を取り消して未回答に戻す */
+export async function clearRsvp(eventId: string, childId: string) {
   const user = await requireUser()
   const e = await loadRsvpEvent(eventId)
   if (!(await canActForChild(user, childId))) throw new Error('権限がありません')
-  if (!user.isAdmin && !rsvpOpen(e)) throw new Error('部内締めを過ぎています')
-  const comp = e.allow_companions ? Math.min(20, Math.max(0, Math.floor(companions || 0))) : 0
-  await sql`update rsvps set companions = ${comp} where event_id = ${eventId} and child_id = ${childId}`
+  if (!user.isAdmin && !rsvpOpen(e)) throw new Error('部内締めを過ぎたため、変更は管理者にお問い合わせください')
+  const r = await applyAnswer(e, user.id, childId, 'clear', 0)
+  await notifyPromoted(e, r.promoted)
   refresh()
 }
 
-export async function cancelRsvp(eventId: string, childId: string) {
+/** 管理者: 未回答の子の保護者・家族に催促を送る */
+export async function nudgeUnanswered(eventId: string) {
   const user = await requireUser()
+  assertAdmin(user)
   const e = await loadRsvpEvent(eventId)
-  if (!(await canActForChild(user, childId))) throw new Error('権限がありません')
-  if (!user.isAdmin && !rsvpOpen(e)) throw new Error('部内締めを過ぎたため、取り消しは管理者にお問い合わせください')
-
-  const promoted = await sql.begin(async (tx) => {
-    await tx`select id from events where id = ${eventId} for update`
-    const [removed] = await tx<{ status: string }[]>`
-      delete from rsvps where event_id = ${eventId} and child_id = ${childId} returning status`
-    if (!removed || removed.status !== 'going' || e.capacity == null) return null
-    // 空いた枠をキャンセル待ちの先頭に繰り上げ
-    const [next] = await tx<{ child_id: string }[]>`
-      update rsvps set status = 'going'
-      where id = (select id from rsvps where event_id = ${eventId} and status = 'waitlist' order by created_at limit 1)
-      returning child_id`
-    return next?.child_id ?? null
+  const targets = await eventTargetChildIds(eventId)
+  const answered = new Set((await sql<{ child_id: string }[]>`select child_id from rsvps where event_id = ${eventId}`).map((r) => r.child_id))
+  const pending = targets.filter((c) => !answered.has(c))
+  const recipients = await guardiansOf(pending)
+  notifyLater(recipients, 'reminder', {
+    title: '参加・見送りの回答をお願いします',
+    body: `「${e.title}」（${fmtDateTime(e.starts_at)}）${e.member_deadline ? `の部内締めは ${fmtDateTime(e.member_deadline)} です` : 'の回答がまだです'}`,
+    url: `/events/${eventId}`,
   })
-
-  if (promoted) {
-    const [c] = await sql<{ full_name: string }[]>`select full_name from children where id = ${promoted}`
-    notifyLater(await guardiansOf([promoted]), 'waitlist', {
-      title: 'キャンセル待ちから繰り上がりました',
-      body: `${c.full_name}さんが「${e.title}」に参加できるようになりました`,
-      url: `/events/${eventId}`,
-    })
-  }
-  refresh()
+  return { sent: recipients.length }
 }
 
 export async function setPayment(rsvpId: string, paid: boolean, note: string) {
@@ -385,39 +442,4 @@ export async function cancelArrival(arrivalId: string) {
   assertAdmin(user)
   await sql`update arrivals set cancelled_at = now() where id = ${arrivalId} and cancelled_at is null`
   refresh()
-}
-
-/** 初期の練習予定（現行の曜日・会場）をまとめて作成 */
-export async function createStandardPractices(formData: FormData) {
-  const user = await requireUser()
-  assertAdmin(user)
-  const from = String(formData.get('from'))
-  const until = String(formData.get('until'))
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(until) || until < from) {
-    redirect('/admin/practices?error=date')
-  }
-  const [type] = await sql<{ id: string }[]>`select id from event_types where uses_arrival order by sort limit 1`
-  if (!type) redirect('/admin/practices?error=type')
-  const venueRows = await sql<{ id: string; name: string }[]>`select id, name from venues`
-  const venueId = (name: string) => venueRows.find((v) => v.name === name)?.id ?? null
-  const plans = [
-    { venue: '朝霞市総合体育館', weekdays: [1, 2, 4, 5], start: '18:30', end: '20:30' },
-    { venue: '大和中', weekdays: [3], start: '19:00', end: '20:30' },
-    { venue: '志木市民体育館', weekdays: [6], start: '18:30', end: '20:30' },
-  ]
-  let total = 0
-  await sql.begin(async (tx) => {
-    for (const p of plans) {
-      const [s] = await tx<{ id: string }[]>`
-        insert into event_series (freq, weekdays, until_date) values ('weekly', ${p.weekdays}::int[], ${until}::date) returning id`
-      for (const d of expandDates(from, { freq: 'weekly', weekdays: p.weekdays, untilDate: until, count: null })) {
-        const startsAt = fromJst(d, p.start)
-        await tx`
-          insert into events (type_id, title, starts_at, ends_at, venue_id, venue_text, series_id, created_by)
-          values (${type.id}, '練習', ${startsAt}, ${fromJst(d, p.end)}, ${venueId(p.venue)}, ${venueId(p.venue) ? '' : p.venue}, ${s.id}, ${user.id})`
-        total++
-      }
-    }
-  })
-  redirect(`/admin/practices?created=${total}`)
 }

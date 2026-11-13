@@ -1,27 +1,38 @@
 @import "tailwindcss";
 
-/* ブランドカラーはここを差し替えるだけで全体に反映される */
+/*
+ * 色の決まり（ここを差し替えるだけで全体に反映される）
+ *   brand … 卓球台の青。画面の骨組み・ボタン。
+ *   ball  … ボールのオレンジ。「あなたの対応が必要」なところだけに使う。
+ *   それ以外（ok / danger / warn）は状態を表すときだけ。
+ */
 :root {
-  --brand: #1e6fd9;
-  --brand-dark: #1558b0;
-  --brand-soft: #e8f1fc;
-  --danger: #d93b3b;
+  --brand: #1c4fa0;
+  --brand-dark: #153d7e;
+  --brand-soft: #e8effa;
+  --ball: #f59a23;
+  --ball-soft: #fff1dc;
+  --ball-ink: #7a4500;
+  --danger: #cc2f2f;
   --danger-soft: #fdecec;
-  --ok: #2e9e5b;
-  --ok-soft: #e7f6ee;
-  --warn: #c77700;
-  --warn-soft: #fff4e0;
-  --bg: #f4f6f9;
+  --ok: #1d8a52;
+  --ok-soft: #e4f5ec;
+  --warn: #a85f00;
+  --warn-soft: #fff1dc;
+  --bg: #f1f4f9;
   --card: #ffffff;
-  --text: #1c2430;
-  --muted: #6b7686;
-  --line: #e3e7ee;
+  --text: #152238;
+  --muted: #5d6b82;
+  --line: #dde3ee;
 }
 
 @theme inline {
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
   --color-brand-soft: var(--brand-soft);
+  --color-ball: var(--ball);
+  --color-ball-soft: var(--ball-soft);
+  --color-ball-ink: var(--ball-ink);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-ok: var(--ok);
@@ -53,7 +64,7 @@ body {
 
 /* 共通部品（@utility なので他の部品から @apply できる） */
 @utility card {
-  @apply rounded-2xl bg-card shadow-[0_1px_2px_rgba(16,24,40,0.06)] border border-line;
+  @apply rounded-2xl bg-card border border-line;
 }
 @utility btn {
   @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-4 text-[0.95rem] font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100;
@@ -86,7 +97,62 @@ body {
   @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;
 }
 @utility section-title {
-  @apply px-1 pb-2 pt-4 text-sm font-bold text-muted;
+  @apply px-1 pb-2 pt-4 text-[0.95rem] font-bold text-text;
+}
+/* 状態を表す小さなラベル */
+@utility chip-ok {
+  @apply inline-flex items-center rounded-full bg-ok-soft px-2.5 py-1 text-sm font-bold text-ok;
+}
+@utility chip-wait {
+  @apply inline-flex items-center rounded-full bg-ball-soft px-2.5 py-1 text-sm font-bold text-ball-ink;
+}
+@utility chip-muted {
+  @apply inline-flex items-center rounded-full bg-bg px-2.5 py-1 text-sm font-bold text-muted;
+}
+/* 対応が必要なカード（左にボール色の帯） */
+@utility todo-card {
+  @apply card relative overflow-hidden pl-1.5 before:absolute before:inset-y-0 before:left-0 before:w-1.5 before:bg-ball;
+}
+
+/* 時刻・日付・人数の数字（得点板のような、幅のそろった数字） */
+.num {
+  font-family: "Barlow Semi Condensed", var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ホーム上部の青い帯。白い1本線は卓球台のセンターライン */
+.table-band {
+  background: var(--brand);
+  color: #fff;
+}
+.table-line {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.sheet-in {
+  animation: sheet-in 0.2s ease-out;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in {
+    animation: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.table-band :focus-visible {
+  outline-color: #fff;
 }
 
 .pb-safe {

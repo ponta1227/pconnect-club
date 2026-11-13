@@ -15,7 +15,7 @@ function TypeFields({ t }: { t?: { name: string; color: string; uses_rsvp: boole
         <input name="sort" type="number" defaultValue={t?.sort ?? 0} className="input w-16" aria-label="並び順" />
       </div>
       <div className="space-y-1 text-sm">
-        <label className="flex items-center gap-2"><input type="checkbox" name="uses_rsvp" defaultChecked={t?.uses_rsvp} className="h-5 w-5" />参加ボタンを使う（大会・イベント向け）</label>
+        <label className="flex items-center gap-2"><input type="checkbox" name="uses_rsvp" defaultChecked={t?.uses_rsvp} className="h-5 w-5" />参加・見送りの回答を集める（大会・イベント向け）</label>
         <label className="flex items-center gap-2"><input type="checkbox" name="uses_arrival" defaultChecked={t?.uses_arrival} className="h-5 w-5" />到着登録・欠席連絡の対象（練習向け）</label>
         <label className="flex items-center gap-2"><input type="checkbox" name="remind" defaultChecked={t?.remind ?? true} className="h-5 w-5" />部内締めのリマインドを送る</label>
       </div>

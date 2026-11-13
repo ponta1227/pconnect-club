@@ -19,7 +19,8 @@ test.describe.serial('主要フロー', () => {
     await admin.getByRole('button', { name: '管理者として開始' }).click()
     await agreeTerms(admin)
     await finishOnboarding(admin)
-    await expect(admin.getByText('木村直登')).toBeVisible()
+    await expect(admin.getByRole('heading', { name: 'やること' })).toBeVisible()
+    await expect(admin.getByRole('heading', { name: 'クラブの状況（管理者）' })).toBeVisible()
   })
 
   test('クラス・名簿CSV・タブレットPIN・予定の登録', async () => {
@@ -44,27 +45,52 @@ test.describe.serial('主要フロー', () => {
     await admin.getByRole('button', { name: '保存' }).click()
     await expect(admin.getByText('PINを保存しました')).toBeVisible()
 
-    // 今日の練習（集計に入るよう早い時刻にする）
+    // 今日の練習（種別・タイトルは最初から「練習」。まだ終わっていない時間帯にしてホームの帯に出す）
     await admin.goto(`/events/new?date=${todayJst()}`)
-    await admin.locator('input[name=title]').fill('練習')
+    await expect(admin.locator('input[name=title]')).toHaveValue('練習')
     await admin.locator('input[name=start_time]').fill('00:05')
+    await admin.locator('input[name=end_time]').fill('23:55')
     await admin.getByRole('button', { name: '登録する' }).click()
     await admin.waitForURL(/\/events\/[0-9a-f-]{36}$/)
     practiceUrl = new URL(admin.url()).pathname
 
-    // 大会（定員1・同行者あり・申込締切19日後 → 部内締めは5日後）
-    await admin.goto('/events/new')
+    // 大会（定員1・同行者あり・申込締切19日後 → 部内締めは自動で5日後）。登録と同時に掲示板へお知らせも出す
+    await admin.goto('/events/new?kind=rsvp')
     await admin.locator('label').filter({ hasText: /^大会$/ }).click()
     await admin.locator('input[name=title]').fill('市民大会')
     await admin.locator('input[name=date]').fill(addDaysJst(20))
+    await admin.locator('textarea[name=fee_note]').fill('参加費 1,500円')
     await admin.locator('input[name=entry_deadline]').fill(`${addDaysJst(19)}T23:59`)
+    await expect(admin.getByText('申込締切の2週間前に自動で決まります')).toBeVisible()
+    await admin.getByText('くわしい設定').click()
     await admin.locator('input[name=capacity]').fill('1')
     await admin.locator('input[name=allow_companions]').check()
-    await admin.getByRole('button', { name: '登録する' }).click()
+    await admin.getByRole('button', { name: '登録して、お知らせを出す' }).click()
     await admin.waitForURL(/\/events\/[0-9a-f-]{36}$/)
     tournamentUrl = new URL(admin.url()).pathname
-    await expect(admin.getByText(/部内締め:/)).toBeVisible()
-    await expect(admin.getByText(/大会の申込締切（管理者のみ表示）/)).toBeVisible()
+    await expect(admin.getByText(/部内締め: /)).toBeVisible()
+    await expect(admin.getByText(/大会の申込締切:/)).toBeVisible()
+    await expect(admin.getByRole('heading', { name: '未回答 3人' })).toBeVisible()
+
+    // お知らせが自動で作られ、予定が付いている
+    await admin.goto('/board')
+    const card = admin.locator('a').filter({ hasText: '市民大会' })
+    await expect(card.getByText('予定つき')).toBeVisible()
+  })
+
+  test('練習日程：1か月ぶんをまとめて入れて、1日だけ休みにする', async () => {
+    const next = addDaysJst(32).slice(0, 7)
+    await admin.goto(`/admin/schedule?ym=${next}`)
+    await admin.getByRole('button', { name: /いつもの練習をまとめて入れる/ }).click()
+    await expect(admin.getByText(/日ぶんの練習を入れました/)).toBeVisible()
+    await expect(admin.getByText('この月は、いつもの練習がすべて入っています。')).toBeVisible()
+    await admin.getByRole('button', { name: /日\(月\) 18:30から 朝霞市総合体育館/ }).first().click()
+    await admin.getByRole('button', { name: '休みにする' }).click()
+    await expect(admin.getByRole('button', { name: /日\(月\) 休み/ })).toHaveCount(1)
+    // 休みにした日は、まとめて入れ直しても上書きされない
+    await admin.getByRole('button', { name: /日\(月\) 休み/ }).click()
+    await admin.getByRole('button', { name: '休みを取り消す（練習あり）' }).click()
+    await expect(admin.getByRole('button', { name: /日\(月\) 休み/ })).toHaveCount(0)
   })
 
   test('保護者が招待リンクで参加し、子どもを申請 → 管理者が承認', async () => {
@@ -93,27 +119,52 @@ test.describe.serial('主要フロー', () => {
       await expect(admin.getByText(`保護者の紐づけ申請 ${1 - i}件`)).toBeVisible()
     }
     await parent.goto('/')
-    await expect(parent.getByText('今日の練習')).toBeVisible()
-    await expect(parent.getByText('山田太郎')).toBeVisible()
-    await expect(parent.getByText('未到着').first()).toBeVisible()
+    await expect(parent.getByText(/きょうの練習/)).toBeVisible()
+    await expect(parent.getByRole('button', { name: '山田太郎 欠席・遅刻を連絡' })).toBeVisible()
   })
 
-  test('大会の参加登録：同行者・定員・キャンセル待ち・自動繰り上げ', async () => {
+  test('大会の回答：ホームからそのまま参加・見送り、定員・キャンセル待ち・自動繰り上げ', async () => {
+    // ホームの「やること」に大会が出て、その場で回答できる
+    await parent.goto('/')
+    const todo = parent.locator('article').filter({ hasText: '市民大会' })
+    await expect(todo.getByText('参加費 1,500円')).toBeVisible()
+    await parent.getByRole('button', { name: '山田太郎 参加する' }).click()
+    const taro = parent.locator('li').filter({ hasText: '山田太郎' }).filter({ hasText: '同行する人' })
+    await expect(taro.getByText('✓ 参加')).toBeVisible()
+    await taro.getByRole('button', { name: '同行者を増やす' }).click()
+    await expect(taro.getByText('1人')).toBeVisible()
+
+    // 定員1なので、2人目はキャンセル待ち
+    await parent.getByRole('button', { name: '山田花子 参加する' }).click()
+    const answered = parent.locator('article').filter({ hasText: '市民大会' })
+    await expect(answered.getByText('キャンセル待ち', { exact: true })).toBeVisible()
+    // 全員ぶん回答したので「やること」は空になる（お知らせも既読になる）
+    await expect(parent.getByText('いま対応が必要なことはありません')).toBeVisible()
+
+    // 太郎を見送りに変えると、花子が自動で繰り上がる
+    await parent.getByRole('button', { name: '山田太郎 の回答を変更' }).click()
+    await parent.getByRole('button', { name: '山田太郎 見送る' }).click()
+    await expect(answered.getByText('見送り', { exact: true })).toBeVisible()
+    await expect(answered.getByText('✓ 参加')).toBeVisible()
+    await expect(answered.getByText('キャンセル待ち', { exact: true })).toHaveCount(0)
+
+    // 掲示板のお知らせの中でも回答が見える。申込締切は保護者には見えない
+    await parent.goto('/board')
+    await parent.locator('a').filter({ hasText: '市民大会' }).click()
+    await expect(parent.getByText('参加しますか？')).toBeVisible()
+    await expect(parent.getByRole('button', { name: '山田花子 の回答を変更' })).toBeVisible()
     await parent.goto(tournamentUrl)
     await expect(parent.getByText(/大会の申込締切/)).toHaveCount(0)
-    await parent.locator('label').filter({ hasText: '山田太郎' }).locator('input').check()
-    await parent.locator('select').filter({ hasText: '0人' }).selectOption('2')
-    await parent.getByRole('button', { name: '参加する' }).click()
-    const taro = parent.locator('li').filter({ hasText: '山田太郎' }).first()
-    await expect(taro.getByText('参加', { exact: true })).toBeVisible()
+    await expect(parent.getByText(/回答の状況/)).toHaveCount(0)
 
-    // 残り1人なので選択欄は出ず、ボタンに名前が出る
-    await parent.getByRole('button', { name: '山田花子さん 参加する' }).click()
-    await expect(parent.getByText('定員に達しているため、キャンセル待ちで登録しました')).toBeVisible()
-
-    await taro.getByRole('button', { name: '取消' }).click()
-    const hanako = parent.locator('li').filter({ hasText: '山田花子' }).first()
-    await expect(hanako.getByText('参加', { exact: true })).toBeVisible()
+    // 管理者：回答状況が数字で見え、聞き取った回答を代わりに入力できる
+    await admin.goto(tournamentUrl)
+    await expect(admin.getByRole('heading', { name: '未回答 1人' })).toBeVisible()
+    await expect(admin.getByText('保護者が未登録のため、通知が届きません')).toBeVisible()
+    await expect(admin.getByRole('button', { name: '未回答の保護者に催促を送る' })).toBeDisabled()
+    await admin.getByRole('button', { name: '佐藤一郎 を見送りにする' }).click()
+    await expect(admin.getByText('全員が回答済みです。')).toBeVisible()
+    await expect(admin.getByText('見送り 2人')).toBeVisible()
   })
 
   test('会場タブレットで到着 → 保護者の画面に反映', async ({ browser }) => {
@@ -133,11 +184,13 @@ test.describe.serial('主要フロー', () => {
   })
 
   test('欠席連絡は管理者だけが見られる', async ({ browser }) => {
-    await parent.goto(practiceUrl)
-    await parent.getByRole('button', { name: '山田花子さんの欠席・遅刻・早退を連絡' }).click()
-    await parent.locator('input[name=reason]').fill('発熱のため')
-    await parent.getByRole('button', { name: '連絡する' }).click()
-    await expect(parent.getByText('発熱のため')).toBeVisible()
+    // ホームの青い帯から、そのまま欠席を連絡できる
+    await parent.goto('/')
+    await parent.getByRole('button', { name: '山田花子 欠席・遅刻を連絡' }).click()
+    await parent.getByPlaceholder('例: 学校行事のため').fill('発熱のため')
+    await parent.getByRole('button', { name: '欠席を連絡する' }).click()
+    await expect(parent.getByText(/欠席\s*連絡済み/)).toBeVisible()
+    await expect(parent.getByRole('button', { name: '山田花子 連絡を変更' })).toBeVisible()
 
     await admin.goto(practiceUrl)
     await expect(admin.getByText('欠席・遅刻・早退（管理者のみ） 1件')).toBeVisible()
@@ -157,6 +210,10 @@ test.describe.serial('主要フロー', () => {
 
     // 権限：管理画面・管理者用CSVには入れない
     await other.goto('/admin')
+    await expect(other).toHaveURL(/\/$/)
+    await other.goto('/admin/schedule')
+    await expect(other).toHaveURL(/\/$/)
+    await other.goto('/events/new')
     await expect(other).toHaveURL(/\/$/)
     const res = await other.request.get(`/api${tournamentUrl}/participants.csv`)
     expect(res.status()).toBe(403)
@@ -192,12 +249,15 @@ test.describe.serial('主要フロー', () => {
     await child.goto('/')
     await agreeTerms(child)
     await expect(child).toHaveURL(/\/$/)
+    await expect(child.getByText(/クラブの状況/)).toHaveCount(0)
     await expect(child.getByRole('link', { name: 'チャット' })).toHaveCount(0)
     await child.goto(practiceUrl)
-    await expect(child.getByText(/に到着しました/)).toBeVisible()
+    await expect(child.getByText(/✓ \d\d:\d\d 到着/)).toBeVisible()
     await expect(child.getByText(/到着済み/)).toHaveCount(0)
     await child.goto(tournamentUrl)
-    await expect(child.getByRole('heading', { name: '参加者' })).toHaveCount(0)
+    await expect(child.getByText('参加しますか？')).toBeVisible()
+    await expect(child.getByRole('heading', { name: /参加者/ })).toHaveCount(0)
+    await expect(child.getByText(/回答の状況/)).toHaveCount(0)
     await child.goto('/members')
     await expect(child).toHaveURL(/\/$/)
 
@@ -224,7 +284,8 @@ test.describe.serial('主要フロー', () => {
     const postUrl = new URL(admin.url()).pathname
 
     await parent.goto('/')
-    await parent.getByText('台風のため練習中止').click()
+    await expect(parent.getByText('アンケートに回答')).toBeVisible()
+    await parent.getByText('台風のため練習中止').first().click()
     await expect(parent).toHaveURL(postUrl)
     await parent.locator('label').filter({ hasText: '参加する' }).click()
     await parent.getByRole('button', { name: '回答する' }).click()
@@ -237,7 +298,8 @@ test.describe.serial('主要フロー', () => {
     await expect(parent.getByRole('button', { name: /👍\s*1/ })).toBeVisible()
 
     await admin.goto(postUrl)
-    const readers = admin.locator('details').filter({ hasText: '管理者のみ一覧を表示' })
+    await expect(admin.getByRole('heading', { name: '読まれた状況（管理者のみ）' })).toBeVisible()
+    const readers = admin.locator('details').filter({ hasText: '読んだ人' })
     await readers.locator('summary').click()
     await expect(readers.getByText(/山田母/)).toBeVisible()
   })

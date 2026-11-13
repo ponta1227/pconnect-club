@@ -13,8 +13,8 @@ export default async function BoardPage({ searchParams }: PageProps<'/board'>) {
   const user = await requireUser()
   const sp = await searchParams
   const page = Math.max(0, Number(sp.page) || 0)
-  const posts = await sql<{ id: string; title: string; body: string; pinned: boolean; urgent: boolean; published_at: Date | null; created_at: Date; author: string | null; comments: number; reads: number; read: boolean; has_poll: boolean; photos: number; class_names: string[] }[]>`
-    select p.id, p.title, p.body, p.pinned, p.urgent, p.published_at, p.created_at, pr.display_name as author,
+  const posts = await sql<{ id: string; title: string; body: string; pinned: boolean; urgent: boolean; published_at: Date | null; created_at: Date; author: string | null; comments: number; reads: number; read: boolean; has_poll: boolean; photos: number; event_id: string | null; class_names: string[] }[]>`
+    select p.id, p.title, p.body, p.pinned, p.urgent, p.published_at, p.created_at, p.event_id, pr.display_name as author,
       (select count(*)::int from post_comments c where c.post_id = p.id and c.deleted_at is null) as comments,
       (select count(*)::int from post_reads r where r.post_id = p.id) as reads,
       exists (select 1 from post_reads r where r.post_id = p.id and r.profile_id = ${user.id}) as read,
@@ -43,7 +43,8 @@ export default async function BoardPage({ searchParams }: PageProps<'/board'>) {
               {p.urgent && <span className="badge bg-danger text-white"><IconAlert className="mr-0.5 h-3.5 w-3.5" />緊急</span>}
               {p.pinned && <span className="badge bg-brand-soft text-brand"><IconPin className="mr-0.5 h-3.5 w-3.5" />固定</span>}
               {p.class_names.map((n) => <span key={n} className="badge bg-bg text-muted">{n}</span>)}
-              {!p.read && p.published_at && <span className="h-2 w-2 rounded-full bg-danger" aria-label="未読" />}
+              {p.event_id && <span className="badge bg-brand-soft text-brand">予定つき</span>}
+              {!p.read && p.published_at && <span className="badge bg-ball text-text">未読</span>}
             </div>
             <p className={`text-[1.02rem] ${p.read ? 'font-semibold' : 'font-bold'}`}>{p.title}</p>
             {p.body && <p className="mt-1 line-clamp-2 text-sm text-muted">{p.body}</p>}
