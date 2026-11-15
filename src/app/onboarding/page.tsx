@@ -12,6 +12,9 @@ import { ChildLinker } from '@/components/child-linker'
 import { PushToggle } from '@/components/push'
 import { Logo } from '@/components/logo'
 import { InstallGuide } from '@/components/install-guide'
+import { ClubGuideBody } from '@/components/club-guide'
+import { clubGuide, parseGuide } from '@/lib/guide'
+import { confirmGuide } from '@/app/actions/guide'
 
 export const metadata = { title: 'はじめに' }
 
@@ -100,6 +103,20 @@ export default async function OnboardingPage({ searchParams }: PageProps<'/onboa
           <button className="btn-secondary w-full">{enroll.paymentReported ? '次へ' : '支払いました'}</button>
         </form>
         <p className="text-center text-xs text-muted">お支払いはクラブの管理者が確認します。</p>
+      </main>
+    )
+  }
+
+  // クラブのご案内（最後まで読んで「確認しました」）
+  if (current === 'guide') {
+    const guide = await clubGuide()
+    return (
+      <main className="mx-auto max-w-xl space-y-5 px-5 py-10">
+        {head('クラブのご案内', '練習の持ち物やルールです。最後まで読んで、いちばん下の「確認しました」を押してください。あとから「その他 → クラブのご案内」でいつでも見られます。')}
+        <ClubGuideBody blocks={parseGuide(guide.text)} />
+        <form action={confirmGuide.bind(null, true)}>
+          <button className="btn-primary h-13 w-full text-base">確認しました</button>
+        </form>
       </main>
     )
   }

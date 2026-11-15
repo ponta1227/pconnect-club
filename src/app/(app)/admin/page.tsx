@@ -18,6 +18,7 @@ export default async function AdminPage() {
     ['/admin/roster', '名簿（子ども）', `${c.children}人`],
     ['/admin/members', 'メンバーと権限', `${c.members}人`],
     ['/admin/invites', '招待リンク'],
+    ['/admin/rules', 'クラブのご案内（入会時に確認してもらう文章）'],
     ['/admin/attendance', '月次の出席集計'],
     ['/admin/kiosk', '会場のタブレット（到着登録）'],
     ['/admin/classes', 'クラス'],

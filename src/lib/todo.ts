@@ -3,6 +3,7 @@ import { cache } from 'react'
 import { sql } from './db'
 import { getCurrentUser } from './auth'
 import { adultsForClasses, myChildren, type ChildLite } from './access'
+import { guideUnread } from './guide'
 
 // ホームの「やること」。保護者が開いた瞬間に、自分が対応すべきものだけを出す。
 
@@ -32,10 +33,12 @@ export type Todos = {
   answered: RsvpTodo[]
   posts: PostTodo[]
   polls: PollTodo[]
+  /** クラブのご案内を確認していない（更新された） */
+  guide: boolean
   count: number
 }
 
-const EMPTY: Todos = { kids: [], rsvps: [], answered: [], posts: [], polls: [], count: 0 }
+const EMPTY: Todos = { kids: [], rsvps: [], answered: [], posts: [], polls: [], guide: false, count: 0 }
 
 export const getTodos = cache(async (): Promise<Todos> => {
   const user = await getCurrentUser()
@@ -124,7 +127,8 @@ export const getTodos = cache(async (): Promise<Todos> => {
   const pollPostHrefs = new Set(polls.map((p) => p.href))
   const postTodos = posts.filter((p) => !pollPostHrefs.has(`/board/${p.id}`))
 
-  return { kids, rsvps, answered, posts: postTodos, polls, count: rsvps.length + postTodos.length + polls.length }
+  const guide = await guideUnread(user.id, user.isChild)
+  return { kids, rsvps, answered, posts: postTodos, polls, guide, count: rsvps.length + postTodos.length + polls.length + (guide ? 1 : 0) }
 })
 
 // ---------------------------------------------------------------- 管理者向け：クラブの状況

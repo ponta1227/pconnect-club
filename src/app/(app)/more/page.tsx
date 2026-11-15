@@ -8,6 +8,7 @@ export const metadata = { title: 'その他' }
 export default async function MorePage() {
   const user = await requireUser()
   const items: { href: string; label: string; icon: React.ReactNode; show: boolean }[] = [
+    { href: '/rules', label: 'クラブのご案内（持ち物・ルール）', icon: <IconFile />, show: !user.isChild },
     { href: '/albums', label: 'アルバム', icon: <IconPhoto />, show: true },
     { href: '/documents', label: '資料', icon: <IconFile />, show: true },
     { href: '/search', label: '検索', icon: <IconSearch />, show: true },

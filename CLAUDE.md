@@ -36,6 +36,10 @@
 - 予定の中止・休み（`cancelEvent` / `setPracticeOff`）は `onPracticeCancelled`、戻すときは `onPracticeRestored` を必ず呼ぶ。
 - 入会の流れ: 招待リンクに `audience`（existing=BANDから移行／new=新規）。手順は `src/lib/enroll.ts`。GoogleフォームURL・決済URLは `app_settings`（管理者メニュー → 招待リンク）。
 
+## クラブのご案内
+- 文章は `app_settings.guide_text`（`## ` で始まる行が見出し・目次）。管理者メニュー → クラブのご案内 で編集。表示は `/rules`、部品は `src/components/club-guide.tsx`。
+- 入会の手順に「クラブのご案内」（step=guide）があり、「確認しました」で `profiles.guide_read_version` を更新。編集時に「もう一度確認してもらう」で `guide_version` が上がり、未確認の大人は「やること」に出る（`src/lib/guide.ts` の `guideUnread`）。子どもアカウントは対象外。
+
 ## 保護者の表示（管理者のプレビュー）
 - 管理者が「保護者の表示で見る」を押すと Cookie `pc_view=member` が付き、`getCurrentUser()` が `isAdmin=false`（`previewingMember=true`, `canAdmin=true`）を返す。画面も Server Action も一般の保護者と同じ扱いになる。
 - 切り替えは `setMemberPreview(on)`（`src/app/actions/account.ts`）。画面上の帯は `src/components/preview-toggle.tsx`。

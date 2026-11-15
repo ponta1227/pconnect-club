@@ -173,6 +173,16 @@ export default async function HomePage() {
             </div>
           ) : (
             <div className="space-y-2.5">
+              {todos.guide && (
+                <Link href="/rules" className="todo-card flex items-center gap-3 p-4">
+                  <IconBoard className="h-5 w-5 shrink-0 text-ball-ink" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-bold text-ball-ink">読んで「確認しました」を押してください</span>
+                    <span className="block truncate font-bold">クラブのご案内</span>
+                  </span>
+                  <IconChevron className="h-5 w-5 shrink-0 text-muted" />
+                </Link>
+              )}
               {todos.rsvps.map((e) => (
                 <RsvpCard key={e.id} e={e} now={now} todo />
               ))}

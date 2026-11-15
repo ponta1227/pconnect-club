@@ -19,6 +19,14 @@ export async function agreeTerms(page: Page) {
   await expect(page).toHaveURL(/onboarding/)
   await page.locator('input[name=agree]').check()
   await page.getByRole('button', { name: '次へ' }).click()
+  // 大人はクラブのご案内を読んで「確認しました」
+  await page.waitForURL(/onboarding\?step=|\/$/)
+  if (/step=guide/.test(page.url())) {
+    await expect(page.getByRole('heading', { name: 'クラブのご案内' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /球拾い用ネット/ })).toBeVisible()
+    await page.getByRole('button', { name: '確認しました' }).click()
+    await page.waitForURL((u) => !/step=guide/.test(u.search))
+  }
 }
 
 export async function finishOnboarding(page: Page) {

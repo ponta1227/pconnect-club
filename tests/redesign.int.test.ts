@@ -37,8 +37,8 @@ const as = (who: keyof typeof tokens | null) => {
 
 async function profile(name: string, opts: { admin?: boolean; child?: boolean } = {}) {
   const [p] = await db<{ id: string }[]>`
-    insert into profiles (display_name, role, account_kind, terms_agreed_at, onboarded_at)
-    values (${name}, ${opts.admin ? 'admin' : 'member'}, ${opts.child ? 'child' : 'adult'}, now(), now()) returning id`
+    insert into profiles (display_name, role, account_kind, terms_agreed_at, onboarded_at, guide_read_version)
+    values (${name}, ${opts.admin ? 'admin' : 'member'}, ${opts.child ? 'child' : 'adult'}, now(), now(), 999) returning id`
   return p.id
 }
 async function child(name: string) {
