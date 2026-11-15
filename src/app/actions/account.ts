@@ -3,7 +3,8 @@
 import { redirect } from 'next/navigation'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
-import { destroySession, requireUser } from '@/lib/auth'
+import { cookies } from 'next/headers'
+import { destroySession, requireUser, VIEW_COOKIE, ForbiddenError } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { randomToken, sha256 } from '@/lib/crypto'
 import { env } from '@/lib/env'
@@ -106,4 +107,14 @@ export async function leaveClub(formData: FormData) {
   })
   await destroySession()
   redirect('/login')
+}
+
+/** 管理者が「保護者の表示」に切り替える／管理者の表示に戻す */
+export async function setMemberPreview(on: boolean) {
+  const user = await requireUser()
+  if (!user.canAdmin) throw new ForbiddenError()
+  const store = await cookies()
+  if (on) store.set(VIEW_COOKIE, 'member', { httpOnly: true, secure: env.isProd(), sameSite: 'lax', path: '/', maxAge: 60 * 60 * 12 })
+  else store.delete(VIEW_COOKIE)
+  redirect(on ? '/' : '/admin')
 }

@@ -7,6 +7,8 @@ import { randomToken, sha256 } from './crypto'
 import { env } from './env'
 
 export const SESSION_COOKIE = 'pc_session'
+/** 管理者が「保護者の表示」で見ているときに付く Cookie */
+export const VIEW_COOKIE = 'pc_view'
 const SESSION_DAYS = 30
 
 export type CurrentUser = {
@@ -24,6 +26,10 @@ export type CurrentUser = {
   childAccount: { childId: string; status: 'pending' | 'active' | 'revoked'; childName: string } | null
   isAdmin: boolean
   isChild: boolean
+  /** 本当は管理者（保護者の表示で見ている間も true） */
+  canAdmin: boolean
+  /** 管理者が「保護者の表示」で見ている。このときは isAdmin=false で、権限も一般の保護者と同じ */
+  previewingMember: boolean
 }
 
 type ProfileRow = {
@@ -69,6 +75,8 @@ export async function loadUser(profileId: string): Promise<CurrentUser | null> {
         : null,
     isAdmin: row.role === 'admin' && row.account_kind === 'adult',
     isChild: row.account_kind === 'child',
+    canAdmin: row.role === 'admin' && row.account_kind === 'adult',
+    previewingMember: false,
   }
 }
 
@@ -105,7 +113,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const store = await cookies()
   const profileId = await profileIdFromToken(store.get(SESSION_COOKIE)?.value)
   if (!profileId) return null
-  return loadUser(profileId)
+  const user = await loadUser(profileId)
+  if (user?.canAdmin && store.get(VIEW_COOKIE)?.value === 'member') {
+    // 保護者の表示: 画面も操作も一般の保護者と同じ扱いにする
+    return { ...user, role: 'member', isAdmin: false, previewingMember: true }
+  }
+  return user
 })
 
 type RequireOptions = { allowOnboarding?: boolean; allowPending?: boolean }

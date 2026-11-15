@@ -1,6 +1,7 @@
 import { requireAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { ListLink, Page, PageHeader } from '@/components/ui'
+import { MemberPreviewButton } from '@/components/preview-toggle'
 
 export const metadata = { title: '管理者メニュー' }
 
@@ -26,7 +27,11 @@ export default async function AdminPage() {
   return (
     <>
       <PageHeader title="管理者メニュー" back="/more" />
-      <Page>
+      <Page className="space-y-4">
+        <div className="card space-y-2 p-4">
+          <MemberPreviewButton />
+          <p className="text-xs text-muted">保護者と同じ画面に切り替わります。画面上の黒い帯の「管理者に戻す」でいつでも戻れます。</p>
+        </div>
         <ul className="card divide-y divide-line">
           {items.map(([href, label, right]) => (
             <li key={href}>

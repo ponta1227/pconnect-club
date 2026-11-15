@@ -1,5 +1,6 @@
 import { BottomNav } from '@/components/bottom-nav'
 import { PushRegistrar } from '@/components/push'
+import { MemberPreviewBanner } from '@/components/preview-toggle'
 import { requireUser } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { getTodos } from '@/lib/todo'
@@ -7,8 +8,9 @@ import { getTodos } from '@/lib/todo'
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser()
 
-  const [counts] = await sql<{ board: number; chat: number; rooms: number }[]>`
+  const [counts] = await sql<{ board: number; chat: number; rooms: number; kids: number }[]>`
     select
+      (select count(*)::int from guardian_children where profile_id = ${user.id} and status = 'approved') as kids,
       (select count(*)::int from posts p
         where p.published_at is not null
           and p.published_at > now() - interval '30 days'
@@ -26,6 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
+      {user.previewingMember && <MemberPreviewBanner hasChildren={counts.kids > 0} />}
       {children}
       <PushRegistrar />
       <BottomNav showChat={showChat} chatUnread={counts.chat} boardUnread={counts.board} todoCount={todos.count} />

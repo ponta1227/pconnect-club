@@ -36,6 +36,11 @@
 - 予定の中止・休み（`cancelEvent` / `setPracticeOff`）は `onPracticeCancelled`、戻すときは `onPracticeRestored` を必ず呼ぶ。
 - 入会の流れ: 招待リンクに `audience`（existing=BANDから移行／new=新規）。手順は `src/lib/enroll.ts`。GoogleフォームURL・決済URLは `app_settings`（管理者メニュー → 招待リンク）。
 
+## 保護者の表示（管理者のプレビュー）
+- 管理者が「保護者の表示で見る」を押すと Cookie `pc_view=member` が付き、`getCurrentUser()` が `isAdmin=false`（`previewingMember=true`, `canAdmin=true`）を返す。画面も Server Action も一般の保護者と同じ扱いになる。
+- 切り替えは `setMemberPreview(on)`（`src/app/actions/account.ts`）。画面上の帯は `src/components/preview-toggle.tsx`。
+- 新しく管理者専用の判定を書くときも `user.isAdmin` を使う（`canAdmin` は切り替えボタン以外で使わない）。
+
 ## 通知
 `src/lib/notify.ts` の `notifyLater(受信者, 種類, {title, body, url}, opts)` を使う。
 - 種類は `src/lib/notify-kinds.ts`。子どもアカウントには `childOk: true` のときだけ届く（予定の変更・中止のみ）。

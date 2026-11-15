@@ -1,5 +1,6 @@
 import { requireUser } from '@/lib/auth'
 import { Avatar, ListLink, Page, PageHeader } from '@/components/ui'
+import { MemberPreviewButton } from '@/components/preview-toggle'
 import { IconBell, IconChild, IconFile, IconGear, IconPhoto, IconSearch, IconShare, IconUsers } from '@/components/icons'
 
 export const metadata = { title: 'その他' }
@@ -36,13 +37,16 @@ export default async function MorePage() {
           ))}
         </ul>
         {user.isAdmin && (
-          <ul className="card divide-y divide-line">
-            <li>
-              <ListLink href="/admin">
-                <span className="flex items-center gap-3 font-bold text-brand"><IconGear />管理者メニュー</span>
-              </ListLink>
-            </li>
-          </ul>
+          <>
+            <ul className="card divide-y divide-line">
+              <li>
+                <ListLink href="/admin">
+                  <span className="flex items-center gap-3 font-bold text-brand"><IconGear />管理者メニュー</span>
+                </ListLink>
+              </li>
+            </ul>
+            <MemberPreviewButton />
+          </>
         )}
         <div className="flex justify-center gap-4 text-xs text-muted">
           <a href="/terms" className="underline">利用規約</a>
