@@ -4,6 +4,7 @@ import { sql } from '@/lib/db'
 import { eventTargetChildIds } from '@/lib/access'
 import { listEvents, mapUrl } from '@/lib/events'
 import { getAdminStatus, getTodos, type RsvpTodo } from '@/lib/todo'
+import { practiceKidsFor } from '@/lib/makeup'
 import { addDays, fmtDate, fmtDateTime, fmtRelative, fmtTime, jstDateStr, startOfJstDay } from '@/lib/time'
 import { Page } from '@/components/ui'
 import { EventRow } from '@/components/event-card'
@@ -65,24 +66,7 @@ export default async function HomePage() {
   let arrivedCount = 0
   if (practice) {
     const targets = new Set(await eventTargetChildIds(practice.id))
-    const mine = kids.filter((k) => targets.has(k.id))
-    const rows = mine.length
-      ? await sql<{ child_id: string; arrived_at: Date | null; kind: 'absent' | 'late' | 'early' | null; at_time: string | null; reason: string | null }[]>`
-          select c.id as child_id,
-            (select arrived_at from arrivals a where a.event_id = ${practice.id} and a.child_id = c.id and a.cancelled_at is null) as arrived_at,
-            ar.kind, ar.at_time, ar.reason
-          from children c left join absence_reports ar on ar.event_id = ${practice.id} and ar.child_id = c.id
-          where c.id = any(${mine.map((k) => k.id)}::uuid[])`
-      : []
-    practiceKids = mine.map((k) => {
-      const r = rows.find((x) => x.child_id === k.id)
-      return {
-        id: k.id,
-        full_name: k.full_name,
-        arrived: r?.arrived_at ? fmtTime(r.arrived_at) : null,
-        report: r?.kind ? { kind: r.kind, at_time: r.at_time ?? '', reason: r.reason ?? '' } : null,
-      }
-    })
+    practiceKids = await practiceKidsFor(practice, kids.filter((k) => targets.has(k.id)), fmtTime)
     if (!user.isChild) {
       const [a] = await sql<{ n: number }[]>`select count(*)::int as n from arrivals where event_id = ${practice.id} and cancelled_at is null`
       arrivedCount = a.n

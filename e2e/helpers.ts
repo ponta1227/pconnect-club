@@ -31,6 +31,11 @@ export async function finishOnboarding(page: Page) {
   await expect(page).toHaveURL(/\/$/)
 }
 
+/** 日本時間のきょうの曜日（0=日〜6=土） */
+export function todayDow(): number {
+  return new Date(Date.now() + 9 * 3600 * 1000).getUTCDay()
+}
+
 export function todayJst(): string {
   const d = new Date(Date.now() + 9 * 3600 * 1000)
   return d.toISOString().slice(0, 10)

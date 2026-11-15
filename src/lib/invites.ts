@@ -6,20 +6,23 @@ import { adminIds } from './access'
 import { notifyLater } from './notify'
 
 export type InviteKind = 'club' | 'family' | 'child'
+/** クラブ招待の相手: BANDから移行する人／新しく入会する人 */
+export type InviteAudience = 'existing' | 'new'
 export type InviteRow = {
   id: string
   kind: InviteKind
+  audience: InviteAudience
   child_ids: string[]
   created_by: string | null
   used_at: Date | null
   revoked_at: Date | null
 }
 
-export async function createInvite(kind: InviteKind, createdBy: string, childIds: string[] = [], consent = false) {
+export async function createInvite(kind: InviteKind, createdBy: string, childIds: string[] = [], consent = false, audience: InviteAudience = 'existing') {
   const token = randomToken(24)
   await sql`
-    insert into invites (kind, token_hash, child_ids, created_by, consent_at)
-    values (${kind}, ${sha256(token)}, ${childIds}::uuid[], ${createdBy}, ${consent ? new Date() : null})`
+    insert into invites (kind, token_hash, child_ids, created_by, consent_at, audience)
+    values (${kind}, ${sha256(token)}, ${childIds}::uuid[], ${createdBy}, ${consent ? new Date() : null}, ${audience})`
   const path = kind === 'club' ? `/join/${token}` : `/join/${token}`
   return { token, url: `${env.appUrl()}${path}` }
 }
@@ -27,7 +30,7 @@ export async function createInvite(kind: InviteKind, createdBy: string, childIds
 /** 有効な招待を探す（クラブ招待は再利用可、家族・子ども招待は1回限り） */
 export async function findInvite(token: string): Promise<InviteRow | null> {
   const [row] = await sql<InviteRow[]>`
-    select id, kind, child_ids, created_by, used_at, revoked_at from invites where token_hash = ${sha256(token)}`
+    select id, kind, audience, child_ids, created_by, used_at, revoked_at from invites where token_hash = ${sha256(token)}`
   if (!row || row.revoked_at) return null
   if (row.kind !== 'club' && row.used_at) return null
   return row
@@ -93,9 +96,10 @@ export async function resolveLogin(
     return { ok: true, profileId }
   }
 
+  const joinRoute = invite.kind === 'club' ? invite.audience : null
   const [p] = await sql<{ id: string }[]>`
-    insert into profiles (line_user_id, display_name, avatar_url, email, email_verified)
-    values (${identity.lineUserId}, ${identity.name}, ${identity.picture}, ${identity.email}, ${!!identity.email})
+    insert into profiles (line_user_id, display_name, avatar_url, email, email_verified, join_route)
+    values (${identity.lineUserId}, ${identity.name}, ${identity.picture}, ${identity.email}, ${!!identity.email}, ${joinRoute})
     returning id`
   if (invite.kind === 'family') await applyFamilyInvite(invite, p.id)
   return { ok: true, profileId: p.id }

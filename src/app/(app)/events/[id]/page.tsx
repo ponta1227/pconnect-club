@@ -5,6 +5,7 @@ import { sql } from '@/lib/db'
 import { eventTargetChildIds, myChildren } from '@/lib/access'
 import { getEvent, mapUrl } from '@/lib/events'
 import { attachmentsFor } from '@/lib/files'
+import { expectedAttendees, practiceEnded, practiceKidsFor } from '@/lib/makeup'
 import { rsvpOpen } from '@/lib/event-rules'
 import { fmtDate, fmtDateFull, fmtDateTime, fmtTime } from '@/lib/time'
 import { Linkify, Page, PageHeader } from '@/components/ui'
@@ -81,16 +82,9 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
         order by c.kana`
     : []
   const arrivedIds = new Set(arrivals.map((a) => a.child_id))
-  const absenceKids = mine.map((c) => {
-    const a = absences.find((x) => x.child_id === c.id)
-    const arr = arrivals.find((x) => x.child_id === c.id)
-    return {
-      id: c.id,
-      full_name: c.full_name,
-      arrived: arr ? fmtTime(arr.arrived_at) : null,
-      report: a ? { kind: a.kind, at_time: a.at_time, reason: a.reason } : null,
-    }
-  })
+  const absenceKids = e.uses_arrival ? await practiceKidsFor(e, mine, fmtTime) : []
+  const expected = e.uses_arrival && user.isAdmin && !cancelled ? await expectedAttendees(id) : []
+  const ended = practiceEnded(e)
   const othersArrivals = canSeeOthers ? arrivals : []
 
   return (
@@ -179,13 +173,15 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
         {/* ---------------- 練習：欠席・遅刻・早退 */}
         {e.uses_arrival && !cancelled && (
           <section className="card space-y-3 p-4">
-            <h3 className="text-lg font-bold">欠席・遅刻・早退の連絡</h3>
+            <h3 className="text-lg font-bold">参加・欠席の連絡</h3>
             {absenceKids.length > 0 ? (
-              <AbsenceRows eventId={id} eventLabel={`${fmtDate(e.starts_at)} ${fmtTime(e.starts_at)} の${e.title}`} kids={absenceKids} />
+              <AbsenceRows eventId={id} eventLabel={`${fmtDate(e.starts_at)} ${fmtTime(e.starts_at)} の${e.title}`} kids={absenceKids} ended={ended} />
             ) : (
               <p className="text-sm text-muted">連絡できるお子さんが登録されていません。</p>
             )}
-            <p className="text-xs text-muted">連絡しない場合は「出席」として扱います。到着すると保護者に通知が届きます。</p>
+            <p className="text-xs text-muted">
+              参加曜日の練習は、連絡しなければ参加として扱います。休んだ日は振替が1回たまり、ほかの曜日に使えます。到着すると保護者に通知が届きます。
+            </p>
           </section>
         )}
 
@@ -251,6 +247,28 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {/* ---------------- 管理者：参加予定 */}
+        {e.uses_arrival && user.isAdmin && !cancelled && (
+          <section className="card p-4">
+            <h3 className="mb-2 text-lg font-bold">参加予定 {expected.length}人（管理者のみ）</h3>
+            {expected.length === 0 ? (
+              <p className="text-sm text-muted">参加曜日を設定している子がいません。</p>
+            ) : (
+              <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
+                {expected.map((c) => (
+                  <li key={c.id} className="flex items-center gap-1.5">
+                    <span className="flex-1 truncate">{c.full_name}</span>
+                    {c.kind !== 'regular' && (
+                      <span className="rounded-md bg-brand-soft px-1.5 text-xs font-bold text-brand">{c.kind === 'credit' ? '振替' : '追加'}</span>
+                    )}
+                    {arrivedIds.has(c.id) && <span className="text-xs text-ok">✓</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 

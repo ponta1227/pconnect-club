@@ -29,6 +29,13 @@
 - 色は「卓球台の青（brand）＝骨組み」「ボールのオレンジ（ball）＝対応が必要なところだけ」。時刻・人数などの数字には `.num` クラスを付ける。
 - ロゴは `public/logo.png` を置くと差し替わる（`src/components/logo.tsx`）。
 
+## 参加曜日と振替（v1.4）
+- 子どもごとに `children.weekdays`（参加曜日）。その曜日の練習は何もしなくても参加。仕組みは `src/lib/makeup.ts` の冒頭コメントを参照。
+- 振替の残り = `makeup_credits.delta` の合計（期限なし）。たまる: 参加曜日の欠席連絡／連絡なしで来なかった（毎朝の定期処理 `settleNoShows`）／クラブ都合の休み。遅刻・早退ではたまらない。到着が記録されると、その練習でたまった分は取り消す。
+- 参加曜日以外の練習への参加は `practice_extras`。週1日の子は振替を1回使う（`joinExtra`）、週2日以上は使わない。
+- 予定の中止・休み（`cancelEvent` / `setPracticeOff`）は `onPracticeCancelled`、戻すときは `onPracticeRestored` を必ず呼ぶ。
+- 入会の流れ: 招待リンクに `audience`（existing=BANDから移行／new=新規）。手順は `src/lib/enroll.ts`。GoogleフォームURL・決済URLは `app_settings`（管理者メニュー → 招待リンク）。
+
 ## 通知
 `src/lib/notify.ts` の `notifyLater(受信者, 種類, {title, body, url}, opts)` を使う。
 - 種類は `src/lib/notify-kinds.ts`。子どもアカウントには `childOk: true` のときだけ届く（予定の変更・中止のみ）。

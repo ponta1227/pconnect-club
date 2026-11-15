@@ -2,36 +2,76 @@ import { requireAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { fmtDateTime } from '@/lib/time'
 import { revokeClubInvite } from '@/app/actions/admin'
+import { saveEnrollSettings } from '@/app/actions/enroll'
 import { Page, PageHeader } from '@/components/ui'
-import { ActionButton } from '@/components/client'
+import { ActionButton, SubmitButton } from '@/components/client'
 import { InviteGenerator } from '@/components/invite-generator'
 
 export const metadata = { title: '招待リンク' }
 
-export default async function InvitesPage() {
+export default async function InvitesPage({ searchParams }: PageProps<'/admin/invites'>) {
   await requireAdmin()
-  const [current] = await sql<{ created_at: Date; by: string | null }[]>`
-    select i.created_at, p.display_name as by from invites i left join profiles p on p.id = i.created_by
-    where i.kind = 'club' and i.revoked_at is null order by i.created_at desc limit 1`
+  const sp = await searchParams
+  const [current, [settings]] = await Promise.all([
+    sql<{ audience: 'existing' | 'new'; created_at: Date; by: string | null }[]>`
+      select distinct on (i.audience) i.audience, i.created_at, p.display_name as by
+      from invites i left join profiles p on p.id = i.created_by
+      where i.kind = 'club' and i.revoked_at is null order by i.audience, i.created_at desc`,
+    sql<{ form_url: string; payment_url: string }[]>`select form_url, payment_url from app_settings where id = 1`,
+  ])
+
+  const block = (audience: 'existing' | 'new', title: string, flow: string) => {
+    const c = current.find((x) => x.audience === audience)
+    return (
+      <section className="card space-y-3 p-4 text-sm">
+        <h2 className="text-base font-bold">{title}</h2>
+        <p>{flow}</p>
+        <p className="text-muted">
+          {c ? `有効なリンクがあります（${fmtDateTime(c.created_at)} ${c.by ?? ''} 発行）。` : '有効なリンクはありません。'}
+          リンクは保存していないので、必要なときに発行し直してください（発行し直すと古いリンクは使えなくなります）。
+        </p>
+        <InviteGenerator audience={audience} label={audience === 'new' ? '新規入会の招待リンクを発行' : '移行用の招待リンクを発行'} />
+        {c && (
+          <ActionButton action={revokeClubInvite.bind(null, audience)} className="btn-ghost btn-sm text-danger" confirm="このリンクを無効にしますか？">
+            リンクを無効にする
+          </ActionButton>
+        )}
+      </section>
+    )
+  }
+
   return (
     <>
       <PageHeader title="招待リンク" back="/admin" />
       <Page className="space-y-4">
-        <section className="card space-y-3 p-4 text-sm">
-          <p>
-            保護者に送る招待リンクです。リンクを開いてLINEでログインすると、すぐにクラブに参加できます（承認なし）。
-            参加後、保護者がお子さんを名簿から選んで申請し、管理者が承認します。
-          </p>
-          <p className="text-muted">
-            {current ? `有効なリンクがあります（${fmtDateTime(current.created_at)} ${current.by ?? ''} 発行）。` : '有効なリンクはありません。'}
-            セキュリティのためリンクは保存していません。必要なときに再発行してください（再発行すると古いリンクは使えなくなります）。
-          </p>
-          <InviteGenerator />
-          {current && (
-            <ActionButton action={revokeClubInvite} className="btn-ghost btn-sm text-danger" confirm="招待リンクを無効にしますか？">
-              リンクを無効にする
-            </ActionButton>
-          )}
+        {block(
+          'existing',
+          'BANDを使っている方へ（移行用）',
+          '流れ: LINEでログイン → Googleフォーム → 名簿からお子さんを選ぶ → 参加曜日と、いまたまっている振替の回数を入力 → 完了。お子さんの紐づけは管理者が承認します。',
+        )}
+        {block(
+          'new',
+          '新しく入会する方へ',
+          '流れ: LINEでログイン → Googleフォーム → 決済ページ → お子さんの名前を登録 → 参加曜日を選ぶ → 完了。入金を確認してから、承認待ちの画面でお子さんを承認してください。',
+        )}
+
+        <section className="card space-y-3 p-4">
+          <h2 className="font-bold">入会の流れで開くページ</h2>
+          <form action={saveEnrollSettings} className="space-y-3">
+            <label className="block">
+              <span className="label">GoogleフォームのURL</span>
+              <input name="form_url" type="url" className="input" defaultValue={settings?.form_url ?? ''} placeholder="https://forms.gle/..." />
+              <span className="hint block">空にすると、この手順は飛ばします。</span>
+            </label>
+            <label className="block">
+              <span className="label">決済ページのURL（新規入会のみ）</span>
+              <input name="payment_url" type="url" className="input" defaultValue={settings?.payment_url ?? ''} placeholder="https://..." />
+              <span className="hint block">空にすると、この手順は飛ばします。</span>
+            </label>
+            {sp.error === 'url' && <p className="text-sm text-danger">https:// で始まるURLを入力してください。</p>}
+            {sp.saved === '1' && <p className="text-sm text-ok">保存しました。</p>}
+            <SubmitButton pendingText="保存中…">保存する</SubmitButton>
+          </form>
         </section>
       </Page>
     </>

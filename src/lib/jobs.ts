@@ -1,5 +1,6 @@
 import 'server-only'
 import { sql } from './db'
+import { settleNoShows } from './makeup'
 import { eventTargetChildIds, guardiansOf } from './access'
 import { flushQueue, notify } from './notify'
 import { reminderDue } from './event-rules'
@@ -77,5 +78,6 @@ export async function runDailyJobs() {
   const polls = await sendPollReminders()
   const promotion = await runGradePromotion()
   const cleaned = await cleanup()
-  return { flushed, reminders, polls, promotion, cleaned }
+  const noShows = await settleNoShows()
+  return { flushed, reminders, polls, promotion, cleaned, noShows }
 }

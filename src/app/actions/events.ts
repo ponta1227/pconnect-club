@@ -8,6 +8,7 @@ import { sql } from '@/lib/db'
 import { adminIds, adultsForClasses, canActForChild, childAccountsForClasses, eventTargetChildIds, guardiansOf } from '@/lib/access'
 import { attachTo, detachMissing } from '@/lib/files'
 import { notifyLater } from '@/lib/notify'
+import { earnCredit, isRegularDay, onPracticeCancelled, onPracticeRestored, removeEarned } from '@/lib/makeup'
 import { expandDates, type RecurrenceRule } from '@/lib/recurrence'
 import { defaultMemberDeadline, placement, rsvpOpen } from '@/lib/event-rules'
 import { fmtDateTime, fromDatetimeLocal, fromJst, jstDateStr } from '@/lib/time'
@@ -239,6 +240,7 @@ export async function cancelEvent(id: string, urgent: boolean) {
   const [e] = await sql<{ title: string; starts_at: Date }[]>`
     update events set status = 'cancelled', updated_at = now() where id = ${id} returning title, starts_at`
   if (!e) return
+  await onPracticeCancelled(id, user.id)
   const classIds = (await sql<{ class_id: string }[]>`select class_id from event_classes where event_id = ${id}`).map((r) => r.class_id)
   const recipients = [...(await adultsForClasses(classIds)), ...(await childAccountsForClasses(classIds))]
   notifyLater(recipients, urgent ? 'urgent' : 'event', {
@@ -253,6 +255,7 @@ export async function reopenEvent(id: string) {
   const user = await requireUser()
   assertAdmin(user)
   await sql`update events set status = 'active', updated_at = now() where id = ${id}`
+  await onPracticeRestored(id)
   refresh()
 }
 
@@ -399,6 +402,17 @@ export async function reportAbsence(input: z.input<typeof AbsenceForm>) {
   const [e] = await sql<{ title: string; starts_at: Date; uses_arrival: boolean }[]>`
     select e.title, e.starts_at, t.uses_arrival from events e join event_types t on t.id = e.type_id where e.id = ${v.eventId}`
   if (!e?.uses_arrival) throw new Error('この予定では連絡できません')
+  const [child] = await sql<{ weekdays: number[] }[]>`select weekdays from children where id = ${v.childId}`
+  const regular = !!child && isRegularDay(child.weekdays, e.starts_at)
+  // 参加曜日以外の日（振替などで参加予定）を休むときは、参加の取り消しとして扱う（使った振替は戻る）
+  if (!regular && v.kind === 'absent') {
+    await sql.begin(async (tx) => {
+      await tx`delete from practice_extras where event_id = ${v.eventId} and child_id = ${v.childId}`
+      await tx`delete from makeup_credits where event_id = ${v.eventId} and child_id = ${v.childId} and reason = 'used'`
+    })
+    refresh()
+    return
+  }
   const reporterKind = user.isChild ? 'child' : user.isAdmin ? 'admin' : 'adult'
   const atTime = v.kind === 'absent' ? '' : v.atTime
   await sql`
@@ -418,6 +432,9 @@ export async function reportAbsence(input: z.input<typeof AbsenceForm>) {
   // 子ども本人からの連絡は保護者・家族にも知らせる
   if (user.isChild) recipients.push(...(await guardiansOf([v.childId])))
   notifyLater(recipients.filter((id) => id !== user.id), 'absence', msg)
+  // 参加曜日の欠席は振替が1回たまる。遅刻・早退に変えたときは取り消す
+  if (regular && v.kind === 'absent') await earnCredit(v.childId, v.eventId, 'absent', user.id)
+  else await removeEarned(v.childId, v.eventId, ['absent'])
   refresh()
 }
 
@@ -425,6 +442,7 @@ export async function withdrawAbsence(eventId: string, childId: string) {
   const user = await requireUser()
   if (!(await canActForChild(user, childId))) throw new Error('権限がありません')
   await sql`delete from absence_reports where event_id = ${eventId} and child_id = ${childId}`
+  await removeEarned(childId, eventId, ['absent'])
   refresh()
 }
 

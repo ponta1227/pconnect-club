@@ -7,6 +7,7 @@ import { sql } from '@/lib/db'
 import { adultsForClasses, childAccountsForClasses } from '@/lib/access'
 import { notifyLater } from '@/lib/notify'
 import { practiceSlots, practiceType } from '@/lib/schedule'
+import { onPracticeCancelled, onPracticeRestored } from '@/lib/makeup'
 import { daysInMonth, fmtDate, fmtTime, fromJst, jstDateStr, jstParts, monthRange } from '@/lib/time'
 
 // 練習日程の月間プランナー（管理者のみ）
@@ -121,6 +122,7 @@ export async function setPracticeOff(eventId: string, notify: boolean) {
   await admin()
   const e = await loadPractice(eventId)
   await sql`update events set status = 'cancelled', updated_at = now() where id = ${e.id}`
+  await onPracticeCancelled(e.id, null)
   if (notify) await tell(e.id, e.starts_at, `【休み】${fmtDate(e.starts_at)} の練習`, `${fmtDate(e.starts_at)} ${fmtTime(e.starts_at)} からの練習は休みになりました`)
   refresh()
 }
@@ -130,6 +132,7 @@ export async function restorePractice(eventId: string, notify: boolean) {
   await admin()
   const e = await loadPractice(eventId)
   await sql`update events set status = 'active', updated_at = now() where id = ${e.id}`
+  await onPracticeRestored(e.id)
   if (notify) await tell(e.id, e.starts_at, `${fmtDate(e.starts_at)} の練習を行います`, `休みの連絡を取り消しました。${fmtTime(e.starts_at)} から練習があります`)
   refresh()
 }

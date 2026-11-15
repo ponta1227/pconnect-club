@@ -12,6 +12,7 @@ export default async function AdminPage() {
            (select count(*)::int from profiles where deleted_at is null and account_kind = 'adult') as members`
   const items: [string, string, string?][] = [
     ['/admin/schedule', '練習日程（月ごとにまとめて入力・休みの設定）'],
+    ['/admin/makeup', '参加曜日・振替'],
     ['/admin/approvals', '承認待ちの申請', c.pending ? `${c.pending}件` : undefined],
     ['/admin/roster', '名簿（子ども）', `${c.children}人`],
     ['/admin/members', 'メンバーと権限', `${c.members}人`],

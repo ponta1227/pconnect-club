@@ -8,6 +8,7 @@ import { sql } from '@/lib/db'
 import { randomToken, sha256 } from '@/lib/crypto'
 import { env } from '@/lib/env'
 import { sendEmail } from '@/lib/notify'
+import { nextEnrollStep } from '@/lib/enroll'
 import { FORCED_KINDS, NOTIFY_KINDS, type NotifyKind } from '@/lib/notify-kinds'
 
 export async function agreeTerms(formData: FormData) {
@@ -21,7 +22,7 @@ export async function agreeTerms(formData: FormData) {
     await sql`update profiles set onboarded_at = now() where id = ${user.id}`
     redirect('/')
   }
-  redirect('/onboarding?step=children')
+  redirect(`/onboarding?step=${await nextEnrollStep(user.id, null)}`)
 }
 
 export async function finishOnboarding() {

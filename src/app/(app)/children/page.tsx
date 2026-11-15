@@ -6,6 +6,10 @@ import { removeFamilyMember, revokeChildAccount } from '@/app/actions/children'
 import { Page, PageHeader } from '@/components/ui'
 import { ActionButton } from '@/components/client'
 import { ChildLinker } from '@/components/child-linker'
+import { InitialCredits, WeekdayPicker } from '@/components/enroll'
+import { creditBalances } from '@/lib/makeup'
+import { practiceSlots } from '@/lib/schedule'
+import { enrollState } from '@/lib/enroll'
 import { ChildAccountInvite, FamilyInvite } from '@/components/family-invites'
 
 export const metadata = { title: 'お子さん・家族の管理' }
@@ -15,12 +19,15 @@ export default async function ChildrenPage() {
   const [roster, links] = await Promise.all([rosterForLinking(), myLinks(user.id)])
   const approved = links.filter((l) => l.status === 'approved').map((l) => l.child_id)
   const kids = approved.length
-    ? await sql<{ id: string; full_name: string; grade: number; class_names: string[] }[]>`
-        select c.id, c.full_name, c.grade,
+    ? await sql<{ id: string; full_name: string; grade: number; weekdays: number[]; declared: boolean; class_names: string[] }[]>`
+        select c.id, c.full_name, c.grade, c.weekdays,
+          exists (select 1 from makeup_credits m where m.child_id = c.id and m.reason = 'initial') as declared,
           coalesce((select array_agg(cl.name order by cl.sort) from child_classes cc join classes cl on cl.id = cc.class_id where cc.child_id = c.id), '{}') as class_names
         from children c where c.id = any(${approved}::uuid[]) and c.status = 'active' order by c.kana`
     : []
   const ids = kids.map((k) => k.id)
+  const [balances, slots, enroll] = await Promise.all([creditBalances(ids), practiceSlots(), enrollState(user.id)])
+  const slotList = slots.map((sl) => ({ weekday: sl.weekday, label: `${sl.start_time}〜` }))
   const [family, accounts] = ids.length
     ? await Promise.all([
         sql<{ child_id: string; profile_id: string; name: string; via: string }[]>`
@@ -47,6 +54,18 @@ export default async function ChildrenPage() {
               <div>
                 <p className="font-bold">{k.full_name}</p>
                 <p className="text-xs text-muted">{gradeLabel(k.grade)}{k.class_names.length > 0 && `・${k.class_names.join('・')}`}</p>
+              </div>
+              <div className="space-y-2 rounded-xl bg-bg p-3">
+                <WeekdayPicker kid={{ id: k.id, full_name: k.full_name, weekdays: k.weekdays, declared: k.declared, status: 'approved' }} slots={slotList} />
+                <p className="text-[0.95rem]">
+                  振替の残り: <b className="num text-lg">{balances.get(k.id) ?? 0}</b>回
+                </p>
+                {enroll.route === 'existing' && !k.declared && (
+                  <InitialCredits kid={{ id: k.id, full_name: k.full_name, weekdays: k.weekdays, declared: k.declared, status: 'approved' }} />
+                )}
+                <p className="hint">
+                  参加曜日の練習は自動で参加になります。休んだ日は振替が1回たまり、週1日の方はほかの曜日の練習で使えます（期限なし）。参加曜日の変更はクラブの管理者に連絡してください。
+                </p>
               </div>
               <div>
                 <p className="mb-1 text-xs font-bold text-muted">ほかの保護者・家族</p>

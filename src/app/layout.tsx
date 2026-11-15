@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const user = await getCurrentUser();
   return (
-    <html lang="ja" data-font={user?.fontSize ?? "normal"} className="h-full antialiased">
+    <html lang="ja" translate="no" data-font={user?.fontSize ?? "normal"} className="h-full antialiased">
       <body className="min-h-full">{children}</body>
     </html>
   );

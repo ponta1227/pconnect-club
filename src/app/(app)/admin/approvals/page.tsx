@@ -3,6 +3,7 @@ import { sql } from '@/lib/db'
 import { gradeLabel } from '@/lib/grades'
 import { fmtDateTime } from '@/lib/time'
 import { approveChildAccount, approveLink, rejectChildAccount, rejectLink } from '@/app/actions/admin'
+import { confirmPayment } from '@/app/actions/enroll'
 import { Empty, Page, PageHeader } from '@/components/ui'
 import { ActionButton } from '@/components/client'
 
@@ -11,8 +12,10 @@ export const metadata = { title: '承認待ち' }
 export default async function ApprovalsPage() {
   await requireAdmin()
   const [links, accounts] = await Promise.all([
-    sql<{ profile_id: string; child_id: string; guardian: string; child: string; grade: number; created_at: Date; others: string[] }[]>`
+    sql<{ profile_id: string; child_id: string; guardian: string; child: string; grade: number; created_at: Date; others: string[]; join_route: 'existing' | 'new' | null; payment_reported_at: Date | null; payment_confirmed_at: Date | null; weekdays: number[]; initial: number | null }[]>`
       select gc.profile_id, gc.child_id, p.display_name as guardian, c.full_name as child, c.grade, gc.created_at,
+        p.join_route, p.payment_reported_at, p.payment_confirmed_at, c.weekdays,
+        (select sum(delta)::int from makeup_credits m where m.child_id = c.id and m.reason = 'initial') as initial,
         coalesce((select array_agg(p2.display_name) from guardian_children g2 join profiles p2 on p2.id = g2.profile_id
           where g2.child_id = gc.child_id and g2.status = 'approved' and p2.deleted_at is null), '{}') as others
       from guardian_children gc join profiles p on p.id = gc.profile_id join children c on c.id = gc.child_id
@@ -40,6 +43,25 @@ export default async function ApprovalsPage() {
                   {fmtDateTime(l.created_at)}
                   {l.others.length > 0 && `・登録済みの保護者: ${l.others.join('、')}`}
                 </p>
+                <p className="text-sm">
+                  {l.join_route === 'new' ? '新規入会' : l.join_route === 'existing' ? 'BANDから移行' : '招待'}
+                  ・参加曜日: {l.weekdays.length ? l.weekdays.map((d) => '日月火水木金土'[d]).join('・') : '未設定'}
+                  {l.initial != null && `・申告した振替: ${l.initial}回`}
+                </p>
+                {l.join_route === 'new' && (
+                  <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${l.payment_confirmed_at ? 'bg-ok-soft text-ok' : 'bg-ball-soft text-ball-ink'}`}>
+                    <span className="flex-1">
+                      {l.payment_confirmed_at
+                        ? `入金確認済み（${fmtDateTime(l.payment_confirmed_at)}）`
+                        : l.payment_reported_at
+                          ? `支払い済みと申告（${fmtDateTime(l.payment_reported_at)}）。入金を確認してください`
+                          : 'まだ支払いの申告がありません'}
+                    </span>
+                    {!l.payment_confirmed_at && (
+                      <ActionButton action={confirmPayment.bind(null, l.profile_id)} className="btn-secondary btn-sm">入金を確認した</ActionButton>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <ActionButton action={rejectLink.bind(null, l.profile_id, l.child_id)} className="btn-secondary flex-1" confirm="申請を却下しますか？">却下</ActionButton>
                   <ActionButton action={approveLink.bind(null, l.profile_id, l.child_id)} className="btn-primary flex-1">承認</ActionButton>

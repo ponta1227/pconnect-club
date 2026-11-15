@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { addDaysJst, agreeTerms, finishOnboarding, loginAs, newUser, todayJst } from './helpers'
+import { addDaysJst, agreeTerms, finishOnboarding, loginAs, newUser, todayDow, todayJst } from './helpers'
+
+const DOW = ['日', '月', '火', '水', '木', '金', '土']
 
 // 要件定義書 §19 の受け入れ基準に沿った一連の流れ
 test.describe.serial('主要フロー', () => {
@@ -95,7 +97,7 @@ test.describe.serial('主要フロー', () => {
 
   test('保護者が招待リンクで参加し、子どもを申請 → 管理者が承認', async () => {
     await admin.goto('/admin/invites')
-    await admin.getByRole('button', { name: '招待リンクを発行' }).click()
+    await admin.getByRole('button', { name: '移行用の招待リンクを発行' }).click()
     const url = await admin.locator('p.break-all').textContent()
     invitePath = new URL(url!).pathname
 
@@ -109,11 +111,30 @@ test.describe.serial('主要フロー', () => {
       await parent.locator('li').filter({ hasText: name }).getByRole('button', { name: 'この子の保護者として申請' }).click()
       await expect(parent.locator('li').filter({ hasText: name }).getByText('承認待ち')).toBeVisible()
     }
+    // 参加曜日：太郎はきょうの曜日だけ（週1日）、花子はきょう＋もう1日（週2日以上）
+    const today = DOW[todayDow()]
+    const other = DOW[(todayDow() + 2) % 7]
+    const taroCard = parent.locator('section').filter({ hasText: '山田太郎' })
+    await taroCard.getByRole('button', { name: new RegExp(`^${today}`) }).click()
+    await taroCard.getByRole('button', { name: 'この曜日で決める' }).click()
+    await expect(taroCard.getByText(`参加曜日: ${today}`)).toBeVisible()
+    await taroCard.getByRole('button', { name: '増やす' }).click()
+    await taroCard.getByRole('button', { name: '増やす' }).click()
+    await taroCard.getByRole('button', { name: '申告する' }).click()
+    await expect(taroCard.getByText('いまの振替の回数は申告済みです')).toBeVisible()
+    const hanaCard = parent.locator('section').filter({ hasText: '山田花子' })
+    await hanaCard.getByRole('button', { name: new RegExp(`^${today}`) }).click()
+    await hanaCard.getByRole('button', { name: new RegExp(`^${other}`) }).click()
+    await hanaCard.getByRole('button', { name: 'この曜日で決める' }).click()
+    await expect(hanaCard.getByText('（週2日以上）')).toBeVisible()
+    await hanaCard.getByRole('button', { name: '申告する' }).click()
+    await expect(parent.getByRole('link', { name: '次へ', exact: true })).toBeVisible()
     await finishOnboarding(parent)
     await expect(parent.getByText('お子さんの登録は管理者の承認待ちです')).toBeVisible()
 
     await admin.goto('/admin/approvals')
     await expect(admin.getByText('保護者の紐づけ申請 2件')).toBeVisible()
+    await expect(admin.getByText('申告した振替: 2回')).toBeVisible()
     for (let i = 0; i < 2; i++) {
       await admin.getByRole('button', { name: '承認', exact: true }).first().click()
       await expect(admin.getByText(`保護者の紐づけ申請 ${1 - i}件`)).toBeVisible()
@@ -195,6 +216,11 @@ test.describe.serial('主要フロー', () => {
     await admin.goto(practiceUrl)
     await expect(admin.getByText('欠席・遅刻・早退（管理者のみ） 1件')).toBeVisible()
     await expect(admin.getByText('発熱のため')).toBeVisible()
+    // 参加曜日の欠席なので、花子に振替が1回たまり、参加予定から外れる
+    await expect(admin.getByRole('heading', { name: '参加予定 1人（管理者のみ）' })).toBeVisible()
+    await parent.goto('/children')
+    const hana = parent.locator('section').filter({ hasText: '山田花子' }).filter({ hasText: '振替の残り' })
+    await expect(hana.getByText(/振替の残り:\s*1回/)).toBeVisible()
 
     // 別の保護者には見えない
     const { page: other } = await newUser(browser)
@@ -226,6 +252,33 @@ test.describe.serial('主要フロー', () => {
     await expect(other).toHaveURL(/\/login/)
   })
 
+
+  test('参加曜日以外の練習は、振替を使って参加できる（取り消すと戻る）', async () => {
+    // 来月の練習（練習日程のテストで入れたもの）から、太郎の参加曜日ではない日を開く
+    const otherDow = DOW[(todayDow() + 1) % 7]
+    await admin.goto(`/admin/schedule?ym=${addDaysJst(32).slice(0, 7)}`)
+    const day = admin.getByRole('button', { name: new RegExp(`日\\(${otherDow}\\) \\d\\d:\\d\\dから`) }).first()
+    test.skip((await day.count()) === 0, 'この曜日の練習枠がないため')
+    await day.click()
+    await admin.getByRole('link', { name: '予定の画面を開く' }).click()
+    await admin.waitForURL(/\/events\/[0-9a-f-]{36}$/)
+    const otherPractice = new URL(admin.url()).pathname
+
+    await parent.goto(otherPractice)
+    await expect(parent.getByText(/振替の残り\s*2回/)).toBeVisible()
+    await parent.getByRole('button', { name: '山田太郎 振替でこの練習に参加する' }).click()
+    await expect(parent.locator('li').filter({ hasText: '山田太郎' }).getByText('振替で参加')).toBeVisible()
+    await expect(parent.getByText(/振替の残り\s*1回/)).toBeVisible()
+    // 週2日以上の花子は、振替を使わずに参加できる
+    await expect(parent.getByRole('button', { name: '山田花子 この練習に参加する' })).toBeVisible()
+
+    await admin.goto(otherPractice)
+    await expect(admin.locator('section').filter({ hasText: '参加予定' }).getByText('振替')).toBeVisible()
+
+    await parent.goto(otherPractice)
+    await parent.getByRole('button', { name: '山田太郎 の参加を取り消す' }).click()
+    await expect(parent.getByText(/振替の残り\s*2回/)).toBeVisible()
+  })
   test('子どもアカウント：保護者が発行 → 管理者が承認 → 機能制限', async ({ browser }) => {
     await parent.goto('/children')
     const section = parent.locator('section').filter({ hasText: '山田太郎' }).filter({ hasText: '子どもアカウント（本人用）' })

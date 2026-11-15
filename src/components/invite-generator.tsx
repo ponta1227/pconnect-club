@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { regenerateClubInvite } from '@/app/actions/admin'
 import { CopyButton } from './client'
 
-export function InviteGenerator() {
+export function InviteGenerator({ audience = 'existing', label = '招待リンクを発行' }: { audience?: 'existing' | 'new'; label?: string }) {
   const [url, setUrl] = useState<string | null>(null)
   const [pending, start] = useTransition()
   return (
@@ -25,10 +25,10 @@ export function InviteGenerator() {
           disabled={pending}
           onClick={() => {
             if (!confirm('新しい招待リンクを発行します。以前のリンクは使えなくなります。よろしいですか？')) return
-            start(async () => setUrl((await regenerateClubInvite()).url))
+            start(async () => setUrl((await regenerateClubInvite(audience)).url))
           }}
         >
-          招待リンクを発行
+          {label}
         </button>
       )}
     </div>

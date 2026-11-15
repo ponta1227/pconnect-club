@@ -9,4 +9,9 @@ export default async function globalSetup() {
   await sql.unsafe('drop schema if exists public cascade; create schema public;')
   await sql.end()
   execFileSync('npx', ['tsx', 'scripts/migrate.ts'], { env: { ...process.env, DATABASE_URL: url }, stdio: 'inherit' })
+  // どの曜日にテストを実行しても「きょうの練習」を参加曜日にできるよう、日曜の練習枠も足しておく
+  const db = postgres(url, { max: 1, onnotice: () => {} })
+  await db`insert into practice_slots (weekday, venue_id, start_time, end_time)
+    select 0, id, '09:00', '12:00' from venues where name = '朝霞市総合体育館' on conflict (weekday) do nothing`
+  await db.end()
 }

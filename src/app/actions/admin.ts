@@ -272,16 +272,19 @@ export async function removeMember(profileId: string) {
   refresh()
 }
 
-export async function regenerateClubInvite() {
+/** クラブ招待リンクを発行し直す（BAND移行用・新規入会用はそれぞれ1本ずつ有効） */
+export async function regenerateClubInvite(audience: 'existing' | 'new' = 'existing') {
   const user = await admin()
-  await sql`update invites set revoked_at = now() where kind = 'club' and revoked_at is null`
-  const { url } = await createInvite('club', user.id)
+  const a = audience === 'new' ? 'new' : 'existing'
+  await sql`update invites set revoked_at = now() where kind = 'club' and audience = ${a} and revoked_at is null`
+  const { url } = await createInvite('club', user.id, [], false, a)
   return { url }
 }
 
-export async function revokeClubInvite() {
+export async function revokeClubInvite(audience: 'existing' | 'new' = 'existing') {
   await admin()
-  await sql`update invites set revoked_at = now() where kind = 'club' and revoked_at is null`
+  const a = audience === 'new' ? 'new' : 'existing'
+  await sql`update invites set revoked_at = now() where kind = 'club' and audience = ${a} and revoked_at is null`
   refresh()
 }
 
