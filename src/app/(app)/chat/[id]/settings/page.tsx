@@ -16,8 +16,8 @@ export default async function RoomSettingsPage({ params }: PageProps<'/chat/[id]
   const user = await requireUser()
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id) || !(await isRoomMember(user.id, id))) notFound()
-  const [room] = await sql<{ name: string; muted: boolean }[]>`
-    select r.name, cm.muted from chat_rooms r join chat_members cm on cm.room_id = r.id and cm.profile_id = ${user.id} where r.id = ${id}`
+  const [room] = await sql<{ name: string; muted: boolean; is_everyone: boolean }[]>`
+    select r.name, cm.muted, r.is_everyone from chat_rooms r join chat_members cm on cm.room_id = r.id and cm.profile_id = ${user.id} where r.id = ${id}`
   const [note] = await sql<{ body: string }[]>`select body from chat_notes where room_id = ${id}`
   const current = (await sql<{ profile_id: string }[]>`select profile_id from chat_members where room_id = ${id}`).map((r) => r.profile_id)
   const members = user.isAdmin ? (await membersWithChildren()).filter((m) => m.id !== user.id) : []
@@ -49,16 +49,24 @@ export default async function RoomSettingsPage({ params }: PageProps<'/chat/[id]
             </section>
             <form action={updateRoom} className="card space-y-4 p-4">
               <input type="hidden" name="roomId" value={id} />
-              <h2 className="font-bold">ルーム名とメンバー</h2>
+              <h2 className="font-bold">{room.is_everyone ? 'ルーム名' : 'ルーム名とメンバー'}</h2>
               <input name="name" className="input" defaultValue={room.name} maxLength={50} required />
-              <MemberPicker members={members} selected={current.filter((c) => c !== user.id)} />
+              {room.is_everyone ? (
+                <p className="text-sm text-muted">
+                  全体チャットです。クラブに加入した保護者・家族・スタッフ全員（<span className="num">{current.length}</span>人）が自動で入り、抜けることはできません。子どもアカウントは入りません。
+                </p>
+              ) : (
+                <MemberPicker members={members} selected={current.filter((c) => c !== user.id)} />
+              )}
               <SubmitButton>保存</SubmitButton>
             </form>
+            {!room.is_everyone && (
             <section className="card p-4">
               <ActionButton action={deleteRoom.bind(null, id)} className="btn-secondary w-full text-danger" confirm="このルームとメッセージをすべて削除しますか？">
                 ルームを削除
               </ActionButton>
             </section>
+            )}
           </>
         )}
       </Page>

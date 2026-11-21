@@ -19,7 +19,7 @@ export default async function ChatListPage() {
     left join lateral (select body, created_at, sender_id from chat_messages m where m.room_id = r.id and m.deleted_at is null order by created_at desc limit 1) lm on true
     left join profiles lp on lp.id = lm.sender_id
     where cm.profile_id = ${user.id}
-    order by coalesce(lm.created_at, r.created_at) desc`
+    order by r.is_everyone desc, coalesce(lm.created_at, r.created_at) desc`
 
   return (
     <>

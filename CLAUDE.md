@@ -58,6 +58,10 @@
 - 切り替えは `setMemberPreview(on)`（`src/app/actions/account.ts`）。画面上の帯は `src/components/preview-toggle.tsx`。
 - 新しく管理者専用の判定を書くときも `user.isAdmin` を使う（`canAdmin` は切り替えボタン以外で使わない）。
 
+## 全体チャット
+- `chat_rooms.is_everyone` の部屋が1つだけある（名前の初期値「全体チャット」）。大人のアカウントは作成時にDBのトリガー（`join_everyone_chat`）で自動参加。子どもアカウントは入らない。
+- 管理者でもメンバーの変更・削除はできない（名前だけ変えられる）。ミュートはできる。チャット一覧ではいちばん上。
+
 ## 通知
 `src/lib/notify.ts` の `notifyLater(受信者, 種類, {title, body, url}, opts)` を使う。
 - 種類は `src/lib/notify-kinds.ts`。子どもアカウントには `childOk: true` のときだけ届く（予定の変更・中止のみ）。

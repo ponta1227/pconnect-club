@@ -194,3 +194,35 @@ describe('メールアドレスでログイン（確認コード）', () => {
     expect(r.ok).toBe(false)
   })
 })
+
+describe('全体チャット', () => {
+  let chat: typeof import('@/app/actions/chat')
+  beforeAll(async () => {
+    chat = await import('@/app/actions/chat')
+  })
+  const everyone = async () => (await db<{ id: string }[]>`select id from chat_rooms where is_everyone`)[0].id
+  const isMember = async (room: string, p: string) => (await db`select 1 from chat_members where room_id = ${room} and profile_id = ${p}`).length > 0
+
+  it('大人は自動で入り、子どもアカウントは入らない', async () => {
+    const room = await everyone()
+    expect(await isMember(room, ids.parentA)).toBe(true)
+    expect(await isMember(room, ids.admin)).toBe(true)
+    expect(await isMember(room, ids.kidUser)).toBe(false)
+    const [p] = await db<{ id: string }[]>`insert into profiles (display_name) values ('あとから入った保護者') returning id`
+    expect(await isMember(room, p.id)).toBe(true)
+  })
+
+  it('管理者でもメンバーを外せず、削除もできない', async () => {
+    const room = await everyone()
+    as('admin')
+    const fd = new FormData()
+    fd.set('roomId', room)
+    fd.set('name', 'みんなのチャット')
+    await expect(chat.updateRoom(fd)).rejects.toThrow(/REDIRECT/)
+    expect(await isMember(room, ids.parentA)).toBe(true)
+    expect((await db<{ name: string }[]>`select name from chat_rooms where id = ${room}`)[0].name).toBe('みんなのチャット')
+    await expect(chat.deleteRoom(room)).rejects.toThrow(/削除できません/)
+    as('parentA')
+    await expect(chat.deleteRoom(room)).rejects.toThrow()
+  })
+})
