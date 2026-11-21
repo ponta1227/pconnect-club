@@ -1,12 +1,11 @@
 import { requireAdult } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { gradeLabel } from '@/lib/grades'
-import { myLinks, rosterForLinking } from '@/lib/roster'
+import { myLinks } from '@/lib/roster'
 import { removeFamilyMember, revokeChildAccount } from '@/app/actions/children'
 import { Page, PageHeader } from '@/components/ui'
 import { ActionButton } from '@/components/client'
-import { ChildLinker } from '@/components/child-linker'
-import { InitialCredits, WeekdayPicker } from '@/components/enroll'
+import { InitialCredits, NewChildForm, WeekdayPicker } from '@/components/enroll'
 import { creditBalances } from '@/lib/makeup'
 import { practiceSlots } from '@/lib/schedule'
 import { enrollState } from '@/lib/enroll'
@@ -16,8 +15,12 @@ export const metadata = { title: 'お子さん・家族の管理' }
 
 export default async function ChildrenPage() {
   const user = await requireAdult()
-  const [roster, links] = await Promise.all([rosterForLinking(), myLinks(user.id)])
+  const links = await myLinks(user.id)
   const approved = links.filter((l) => l.status === 'approved').map((l) => l.child_id)
+  const pendingIds = links.filter((l) => l.status === 'pending').map((l) => l.child_id)
+  const pendingKids = pendingIds.length
+    ? await sql<{ id: string; full_name: string }[]>`select id, full_name from children where id = any(${pendingIds}::uuid[]) order by kana`
+    : []
   const kids = approved.length
     ? await sql<{ id: string; full_name: string; grade: number; weekdays: number[]; declared: boolean; class_names: string[] }[]>`
         select c.id, c.full_name, c.grade, c.weekdays,
@@ -45,7 +48,20 @@ export default async function ChildrenPage() {
       <Page className="space-y-4">
         <section>
           <h2 className="section-title pt-0">お子さんの登録</h2>
-          <ChildLinker roster={roster} mine={links} />
+          {pendingKids.length > 0 && (
+            <ul className="card mb-3 divide-y divide-line">
+              {pendingKids.map((k) => (
+                <li key={k.id} className="flex items-center gap-2 px-4 py-3">
+                  <span className="flex-1 font-semibold">{k.full_name}</span>
+                  <span className="chip-muted">管理者の確認待ち</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <NewChildForm />
+          <p className="hint mt-2">
+            ご夫婦など2人目の保護者は、ここで同じお子さんを登録せず、下の「家族を招待」から招待してください。同じお子さんにつながります。
+          </p>
         </section>
 
         {kids.map((k) => {

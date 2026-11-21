@@ -1,14 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireUser } from '@/lib/auth'
-import { myLinks, rosterForLinking } from '@/lib/roster'
 import { agreeTerms, finishOnboarding } from '@/app/actions/account'
 import { markFormSubmitted, markPaymentReported } from '@/app/actions/enroll'
 import { enrollState, enrollSteps, type EnrollStep } from '@/lib/enroll'
 import { practiceSlots } from '@/lib/schedule'
 import { sql } from '@/lib/db'
 import { InitialCredits, NewChildForm, WeekdayPicker, type SetupKid } from '@/components/enroll'
-import { ChildLinker } from '@/components/child-linker'
 import { PushToggle } from '@/components/push'
 import { Logo } from '@/components/logo'
 import { InstallGuide } from '@/components/install-guide'
@@ -123,7 +121,7 @@ export default async function OnboardingPage({ searchParams }: PageProps<'/onboa
 
   // お子さんの登録と参加曜日
   if (current === 'children') {
-    const [roster, mine, slots] = await Promise.all([rosterForLinking(), myLinks(user.id), practiceSlots()])
+    const slots = await practiceSlots()
     const kids = await setupKids(user.id)
     const slotList = slots.map((s) => ({ weekday: s.weekday, label: `${s.start_time}〜` }))
     const ready = kids.length > 0 && kids.every((k) => k.weekdays.length > 0) && (enroll.route !== 'existing' || kids.every((k) => k.declared))
@@ -131,11 +129,9 @@ export default async function OnboardingPage({ searchParams }: PageProps<'/onboa
       <main className="mx-auto max-w-sm space-y-5 px-5 py-10">
         {head(
           'お子さんと参加曜日',
-          enroll.route === 'new'
-            ? 'お子さんの名前を登録して、参加する曜日を選んでください。クラブの管理者が確認すると利用できるようになります。'
-            : '名簿からお子さんを選んで、参加する曜日を選んでください。クラブの管理者が承認すると、到着の通知などが届くようになります。',
+          'お子さんの名前を入力して登録し、参加する曜日を選んでください。クラブの管理者が確認すると、到着の通知などが届くようになります。',
         )}
-        {enroll.route === 'new' ? <NewChildForm /> : <ChildLinker roster={roster} mine={mine} />}
+        <NewChildForm />
         {kids.map((k) => (
           <section key={k.id} className="card space-y-3 p-4">
             <p className="font-bold">

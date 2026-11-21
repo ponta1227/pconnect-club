@@ -40,6 +40,14 @@ export async function approveLink(profileId: string, childId: string) {
 export async function rejectLink(profileId: string, childId: string) {
   await admin()
   await sql`delete from guardian_children where profile_id = ${profileId} and child_id = ${childId} and status = 'pending'`
+  // 保護者が自分で入力して作った子で、ほかに誰もつながっていなければ消す（重複登録の後始末）
+  await sql`
+    delete from children c where c.id = ${childId}
+      and not exists (select 1 from guardian_children g where g.child_id = c.id)
+      and not exists (select 1 from child_accounts a where a.child_id = c.id)
+      and not exists (select 1 from rsvps r where r.child_id = c.id)
+      and not exists (select 1 from arrivals ar where ar.child_id = c.id)
+      and not exists (select 1 from absence_reports ab where ab.child_id = c.id)`
   refresh()
 }
 

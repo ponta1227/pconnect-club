@@ -49,13 +49,25 @@ export async function registerNewChild(fd: FormData): Promise<{ error?: string }
   const v = parsed.data
   const [{ count }] = await sql<{ count: number }[]>`select count(*)::int as count from guardian_children where profile_id = ${user.id}`
   if (count >= 8) return { error: '登録できるお子さんの数を超えています。管理者に連絡してください' }
+  // 名簿に同じ名前の子が1人だけいれば、新しく作らずにその子へつなぐ（管理者の承認は必要）
+  const norm = (x: string) => x.replace(/[\s　]/g, '')
+  const same = await sql<{ id: string }[]>`
+    select id from children where status = 'active'
+      and regexp_replace(full_name, '[[:space:]　]', '', 'g') = ${norm(v.full_name)}`
+  const mine = same.length === 1
+    ? (await sql`select 1 from guardian_children where profile_id = ${user.id} and child_id = ${same[0].id}`).length > 0
+    : false
+  if (mine) return { error: 'このお子さんはすでに登録しています' }
   await sql.begin(async (tx) => {
-    const [c] = await tx<{ id: string }[]>`
-      insert into children (full_name, kana, grade) values (${v.full_name}, ${v.kana}, ${v.grade}) returning id`
-    await tx`insert into guardian_children (profile_id, child_id, status, via) values (${user.id}, ${c.id}, 'pending', 'roster')`
+    const childId =
+      same.length === 1
+        ? same[0].id
+        : (await tx<{ id: string }[]>`
+            insert into children (full_name, kana, grade) values (${v.full_name}, ${v.kana}, ${v.grade}) returning id`)[0].id
+    await tx`insert into guardian_children (profile_id, child_id, status, via) values (${user.id}, ${childId}, 'pending', 'roster')`
   })
   notifyLater(await adminIds(), 'approval', {
-    title: '新規入会のお子さんの承認待ち',
+    title: 'お子さんの登録の確認待ち',
     body: `${user.displayName}さんが ${v.full_name}さんを登録しました`,
     url: '/admin/approvals',
   })

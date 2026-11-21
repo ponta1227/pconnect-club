@@ -35,6 +35,7 @@
 - 振替の残り = `makeup_credits.delta` の合計（期限なし）。たまる: 参加曜日の欠席連絡／連絡なしで来なかった（毎朝の定期処理 `settleNoShows`）／クラブ都合の休み。遅刻・早退ではたまらない。到着が記録されると、その練習でたまった分は取り消す。
 - 参加曜日以外の練習への参加は `practice_extras`。週1日の子は振替を1回使う（`joinExtra`）、週2日以上は使わない。
 - 予定の中止・休み（`cancelEvent` / `setPracticeOff`）は `onPracticeCancelled`、戻すときは `onPracticeRestored` を必ず呼ぶ。
+- お子さんは保護者が名前・よみがな・学年を入力して登録（`registerNewChild`）。名簿に同じ名前の子が1人だけいればその子につなぐ。どちらも管理者の承認待ち。承認画面では同じ名前の子がいると注意を出し、却下すると誰ともつながっていない子は消える。2人目の保護者は「家族を招待」で。
 - 入会の流れ: 招待リンクに `audience`（existing=BANDから移行／new=新規）。手順は `src/lib/enroll.ts`。GoogleフォームURL・決済URLは `app_settings`（管理者メニュー → 招待リンク）。
 
 ## ログインの方法

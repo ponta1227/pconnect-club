@@ -106,11 +106,18 @@ test.describe.serial('主要フロー', () => {
     await parent.getByRole('button', { name: 'この名前で参加' }).click()
     await agreeTerms(parent)
     await expect(parent).toHaveURL(/step=children/)
-    await parent.getByPlaceholder(/お子さんの名前/).fill('山田')
-    for (const name of ['山田太郎', '山田花子']) {
-      await parent.locator('li').filter({ hasText: name }).getByRole('button', { name: 'この子の保護者として申請' }).click()
-      await expect(parent.locator('li').filter({ hasText: name }).getByText('承認待ち')).toBeVisible()
+    // 保護者が名前を入力して登録する（名簿に同じ名前の子がいれば、その子につながる）
+    for (const [name, kana] of [['山田 太郎', 'やまだ たろう'], ['山田花子', 'やまだ はなこ']]) {
+      await parent.locator('input[name=full_name]').fill(name)
+      await parent.locator('input[name=kana]').fill(kana)
+      await parent.getByRole('button', { name: 'このお子さんを登録' }).click()
+      await expect(parent.locator('section').filter({ hasText: name.replace(' ', '') }).getByText('承認待ち')).toBeVisible()
     }
+    // 同じ子を2回は登録できない
+    await parent.locator('input[name=full_name]').fill('山田花子')
+    await parent.locator('input[name=kana]').fill('やまだ はなこ')
+    await parent.getByRole('button', { name: 'このお子さんを登録' }).click()
+    await expect(parent.getByText('このお子さんはすでに登録しています')).toBeVisible()
     // 参加曜日：太郎はきょうの曜日だけ（週1日）、花子はきょう＋もう1日（週2日以上）
     const today = DOW[todayDow()]
     const other = DOW[(todayDow() + 2) % 7]
