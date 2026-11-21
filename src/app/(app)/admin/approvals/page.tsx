@@ -62,8 +62,8 @@ export default async function ApprovalsPage() {
                       {l.payment_confirmed_at
                         ? `入金確認済み（${fmtDateTime(l.payment_confirmed_at)}）`
                         : l.payment_reported_at
-                          ? `支払い済みと申告（${fmtDateTime(l.payment_reported_at)}）。入金を確認してください`
-                          : 'まだ支払いの申告がありません'}
+                          ? `支払い方法を登録したと申告（${fmtDateTime(l.payment_reported_at)}）。入金を確認してください`
+                          : 'まだ支払い方法の登録の申告がありません'}
                     </span>
                     {!l.payment_confirmed_at && (
                       <ActionButton action={confirmPayment.bind(null, l.profile_id)} className="btn-secondary btn-sm">入金を確認した</ActionButton>

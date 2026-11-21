@@ -93,12 +93,12 @@ export default async function OnboardingPage({ searchParams }: PageProps<'/onboa
   if (current === 'payment') {
     return (
       <main className="mx-auto max-w-sm space-y-5 px-5 py-10">
-        {head('お支払い', '決済ページで入会の手続きをしてください。済んだら、この画面に戻って「支払いました」を押します。')}
+        {head('お支払い', '決済ページで支払い方法を登録してください。済んだら、この画面に戻って「支払い方法を登録しました」を押します。')}
         <a href={enroll.paymentUrl} target="_blank" rel="noopener noreferrer" className="btn-primary h-13 w-full text-base">
           決済ページを開く
         </a>
         <form action={markPaymentReported}>
-          <button className="btn-secondary w-full">{enroll.paymentReported ? '次へ' : '支払いました'}</button>
+          <button className="btn-secondary w-full">{enroll.paymentReported ? '次へ' : '支払い方法を登録しました'}</button>
         </form>
         <p className="text-center text-xs text-muted">お支払いはクラブの管理者が確認します。</p>
       </main>
