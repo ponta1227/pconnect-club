@@ -11,6 +11,7 @@ import { PushToggle } from '@/components/push'
 import { Logo } from '@/components/logo'
 import { InstallGuide } from '@/components/install-guide'
 import { ClubGuideBody } from '@/components/club-guide'
+import { FormStep } from '@/components/form-step'
 import { clubGuide, parseGuide } from '@/lib/guide'
 import { confirmGuide } from '@/app/actions/guide'
 
@@ -68,16 +69,14 @@ export default async function OnboardingPage({ searchParams }: PageProps<'/onboa
 
   // Googleフォーム
   if (current === 'form') {
+    const migrating = enroll.route === 'existing'
     return (
       <main className="mx-auto max-w-sm space-y-5 px-5 py-10">
-        {head('入会の申込みフォーム', 'クラブに必要な情報（連絡先など）を、Googleフォームで送ってください。送信したら、この画面に戻って「送信しました」を押します。')}
-        <a href={enroll.formUrl} target="_blank" rel="noopener noreferrer" className="btn-primary h-13 w-full text-base">
-          Googleフォームを開く
-        </a>
-        <form action={markFormSubmitted}>
-          <button className="btn-secondary w-full">{enroll.formSubmitted ? '次へ' : '送信しました'}</button>
-        </form>
-        <p className="text-center text-xs text-muted">フォームは別のタブで開きます。</p>
+        {head(
+          migrating ? '新しいGoogleフォームへの入力' : '入会の申込みフォーム',
+          'クラブに必要な情報（連絡先など）を、Googleフォームで送ってください。送信したら、この画面に戻って「送信しました」を押します。',
+        )}
+        <FormStep formUrl={enroll.formUrl} submitted={enroll.formSubmitted} migrating={migrating} />
       </main>
     )
   }
