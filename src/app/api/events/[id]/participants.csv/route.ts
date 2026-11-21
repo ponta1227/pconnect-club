@@ -13,7 +13,7 @@ export async function GET(_req: Request, ctx: RouteContext<'/api/events/[id]/par
   if (!e) return new Response('Not found', { status: 404 })
   const rows = await participants(id)
   const body = toCsv([
-    ['氏名', 'よみがな', '学年', 'クラス', '状態', '同行者数', '登録日時', '保護者', '入金', '支払いメモ'],
+    ['氏名', 'よみがな', '学年', 'クラス', '状態', '同行者数', '登録日時', '保護者', '参加費', '参加費メモ'],
     ...rows.map((r) => [
       r.full_name,
       r.kana,
@@ -23,7 +23,7 @@ export async function GET(_req: Request, ctx: RouteContext<'/api/events/[id]/par
       r.companions,
       fmtDateTime(r.created_at),
       r.guardians.join('・'),
-      r.paid ? '済' : '',
+      r.paid ? '徴収済み' : '',
       r.payment_note,
     ]),
   ])

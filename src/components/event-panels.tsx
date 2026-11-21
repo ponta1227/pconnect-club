@@ -32,24 +32,42 @@ function useAction() {
 
 type Child = { id: string; full_name: string }
 
-/** 管理者: 支払い状況メモ */
-export function PaymentCell({ rsvpId, paid, note }: { rsvpId: string; paid: boolean; note: string }) {
+/** 管理者: 参加費を徴収したか（ボタンで切り替え）とメモ */
+export function PaymentCell({ rsvpId, name, paid, note }: { rsvpId: string; name: string; paid: boolean; note: string }) {
   const a = useAction()
   const [value, setValue] = useState(note)
+  const [memo, setMemo] = useState(note !== '')
   return (
-    <div className="flex items-center gap-2">
-      <label className="flex items-center gap-1 text-xs">
-        <input type="checkbox" defaultChecked={paid} className="h-4 w-4" onChange={(e) => a.run(() => setPayment(rsvpId, e.target.checked, value))} />
-        入金済み
-      </label>
-      <input
-        className="input !min-h-8 flex-1 py-1 text-xs"
-        placeholder="メモ"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => value !== note && a.run(() => setPayment(rsvpId, paid, value))}
-        maxLength={200}
-      />
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={a.pending}
+          aria-pressed={paid}
+          aria-label={`${name} の参加費を${paid ? '未徴収に戻す' : '徴収済みにする'}`}
+          onClick={() => a.run(() => setPayment(rsvpId, !paid, value))}
+          className={`btn btn-sm flex-1 ${paid ? 'bg-ok-soft text-ok' : 'border border-ball bg-white text-ball-ink'}`}
+        >
+          {a.pending ? '…' : paid ? '✓ 参加費 徴収済み' : '参加費 未徴収（押すと徴収済み）'}
+        </button>
+        {!memo && (
+          <button type="button" className="btn-ghost btn-sm text-xs" onClick={() => setMemo(true)}>
+            メモ
+          </button>
+        )}
+      </div>
+      {memo && (
+        <input
+          className="input !min-h-8 py-1 text-xs"
+          placeholder="メモ（例：現金で受取、次回払い）"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={() => value !== note && a.run(() => setPayment(rsvpId, paid, value))}
+          maxLength={200}
+          aria-label={`${name} の参加費のメモ`}
+        />
+      )}
+      {a.error && <p className="text-xs text-danger">{a.error}</p>}
     </div>
   )
 }

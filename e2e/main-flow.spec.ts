@@ -200,6 +200,14 @@ test.describe.serial('主要フロー', () => {
     await admin.getByRole('button', { name: '佐藤一郎 を見送りにする' }).click()
     await expect(admin.getByText('全員が回答済みです。')).toBeVisible()
     await expect(admin.getByText('非表示・見送り 2人')).toBeVisible()
+
+    // 参加費を徴収したかを、参加者ごとにボタンで記録する（管理者だけに見える）
+    await expect(admin.getByText(/参加費 徴収済み\s*0\s*\/\s*1人/)).toBeVisible()
+    await admin.getByRole('button', { name: '山田花子 の参加費を徴収済みにする' }).click()
+    await expect(admin.getByText(/参加費 徴収済み\s*1\s*\/\s*1人（全員済み）/)).toBeVisible()
+    await expect(admin.getByRole('button', { name: '山田花子 の参加費を未徴収に戻す' })).toBeVisible()
+    await parent.goto(tournamentUrl)
+    await expect(parent.getByText(/参加費 徴収済み/)).toHaveCount(0)
   })
 
   test('会場タブレットで到着 → 保護者の画面に反映', async ({ browser }) => {

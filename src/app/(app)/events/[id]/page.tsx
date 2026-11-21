@@ -245,7 +245,15 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
         {/* ---------------- 参加者 */}
         {e.uses_rsvp && canSeeOthers && going.length + waiting.length > 0 && (
           <section className="card p-4">
-            <h3 className="mb-2 text-lg font-bold">参加者 {going.length}人</h3>
+            <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
+              <h3 className="text-lg font-bold">参加者 {going.length}人</h3>
+              {user.isAdmin && going.length > 0 && (
+                <p className={`text-sm font-bold ${going.every((r) => r.paid) ? 'text-ok' : 'text-ball-ink'}`}>
+                  参加費 徴収済み <span className="num">{going.filter((r) => r.paid).length}</span> / <span className="num">{going.length}</span>人
+                  {going.every((r) => r.paid) && '（全員済み）'}
+                </p>
+              )}
+            </div>
             <ul className="divide-y divide-line">
               {[...going, ...waiting].map((r) => (
                 <li key={r.id} className="space-y-1 py-2">
@@ -254,7 +262,7 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
                     {r.status === 'waitlist' && <span className="rounded-md bg-ball-soft px-1.5 py-0.5 text-xs font-bold text-ball-ink">キャンセル待ち</span>}
                     {e.allow_companions && r.companions > 0 && <span className="text-xs text-muted">同行{r.companions}人</span>}
                   </div>
-                  {user.isAdmin && <PaymentCell rsvpId={r.id} paid={r.paid} note={r.payment_note} />}
+                  {user.isAdmin && r.status === 'going' && <PaymentCell key={`${r.id}${r.paid}`} rsvpId={r.id} name={r.full_name} paid={r.paid} note={r.payment_note} />}
                 </li>
               ))}
             </ul>

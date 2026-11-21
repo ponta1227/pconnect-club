@@ -24,6 +24,7 @@
 - 保護者のホームは「やること」が中心。回答が必要な大会・未読のお知らせ・未回答アンケートは `src/lib/todo.ts` の `getTodos()` が決める（下のタブのバッジも同じ数）。新しく「対応が必要なもの」を増やすときはここに足す。
 - 大会・イベントの回答は `answerRsvp(eventId, childId, 'going' | 'declined')`。**未回答＝rsvps に行が無い**、見送り＝`status='declined'`（保護者の画面には見送るボタンは無く、管理者の代理入力だけ）。参加人数を数えるときは `declined` を除くこと。回答の部品は `src/components/rsvp.tsx`（ホーム・予定・掲示板で共通）。保護者は「参加する」と「取り消す」だけ。
 - 出ない大会はホームのカードの「非表示」（`hideRsvpTodo` → `rsvp_hidden` テーブル）。やること・締切リマインド・催促から外れ、紐づくお知らせは既読になる。回答は変えないので、予定やお知らせからあとで参加できる。
+- 参加費の徴収は `rsvps.paid` / `payment_note`（管理者のみ）。大会の画面の参加者ごとに「参加費 未徴収／✓ 徴収済み」ボタン（`PaymentCell`）と「徴収済み N / M人」。キャンセル待ちには出さない。
 - 欠席・遅刻・早退は `src/components/absence.tsx`（下から出るシート）。
 - 大会を登録すると掲示板のお知らせ（`posts.event_id`）が自動で作られる。回答するとそのお知らせは既読になる。
 - 練習日程は `/admin/schedule`（`src/app/actions/schedule.ts`、「いつもの練習」は `practice_slots` テーブル）。
