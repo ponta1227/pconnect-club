@@ -128,7 +128,7 @@ export function ChildAccountInvite({ childId, childName }: { childId: string; ch
       </label>
       <label className="flex items-start gap-2">
         <input type="checkbox" className="mt-0.5 h-5 w-5" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        <span>保護者として、{childName}さんが本アプリを利用することに同意します（利用規約・プライバシーポリシーに同意）</span>
+        <span>保護者として、{childName}さんがこのアプリを利用することに同意します</span>
       </label>
       <button
         className="btn-primary w-full"

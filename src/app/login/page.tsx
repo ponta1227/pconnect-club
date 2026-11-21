@@ -41,10 +41,6 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
           子ども用アカウントでログイン
         </Link>
       </div>
-      <p className="text-center text-xs text-muted">
-        ログインすると<Link href="/terms" className="underline">利用規約</Link>と
-        <Link href="/privacy" className="underline">プライバシーポリシー</Link>に同意したものとみなします。
-      </p>
       {env.devLoginEnabled() && (
         <Link href="/dev-login" className="btn-secondary w-full">
           開発用ログイン

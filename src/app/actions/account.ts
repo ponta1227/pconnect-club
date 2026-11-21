@@ -12,9 +12,9 @@ import { sendEmail } from '@/lib/notify'
 import { nextEnrollStep } from '@/lib/enroll'
 import { FORCED_KINDS, NOTIFY_KINDS, type NotifyKind } from '@/lib/notify-kinds'
 
+/** 最初の設定（表示名）。規約への同意はGoogleフォームで取るので、ここでは確認しない */
 export async function agreeTerms(formData: FormData) {
   const user = await requireUser({ allowOnboarding: true, allowPending: true })
-  if (formData.get('agree') !== 'on') redirect('/onboarding?error=agree')
   const name = String(formData.get('displayName') ?? '').trim().slice(0, 40)
   if (!user.isChild && !name) redirect('/onboarding?error=name')
   if (user.isChild) await sql`update profiles set terms_agreed_at = now() where id = ${user.id}`

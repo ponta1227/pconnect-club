@@ -19,7 +19,6 @@ export async function loginAs(page: Page, name: string) {
 /** 規約同意〜初回設定を終わらせる（子どもの紐づけは呼び出し側で行う） */
 export async function agreeTerms(page: Page) {
   await expect(page).toHaveURL(/onboarding/)
-  await page.locator('input[name=agree]').check()
   await page.getByRole('button', { name: '次へ' }).click()
   // 大人はクラブのご案内を読んで「確認しました」
   await page.waitForURL(/onboarding\?step=|\/$/)

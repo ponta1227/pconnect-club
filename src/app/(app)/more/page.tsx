@@ -49,10 +49,6 @@ export default async function MorePage() {
             <MemberPreviewButton />
           </>
         )}
-        <div className="flex justify-center gap-4 text-xs text-muted">
-          <a href="/terms" className="underline">利用規約</a>
-          <a href="/privacy" className="underline">プライバシーポリシー</a>
-        </div>
         <form action="/api/auth/logout" method="post">
           <button className="btn-secondary w-full">ログアウト</button>
         </form>

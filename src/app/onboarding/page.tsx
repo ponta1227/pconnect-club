@@ -21,7 +21,7 @@ export default async function OnboardingPage({ searchParams }: PageProps<'/onboa
   const { step, error } = await searchParams
   if (user.termsAgreedAt && user.onboardedAt) redirect('/')
 
-  // 1. 表示名と規約同意
+  // 1. 表示名（規約への同意はGoogleフォームで取る）
   if (!user.termsAgreedAt) {
     return (
       <main className="mx-auto max-w-sm space-y-6 px-5 py-10">
@@ -42,13 +42,6 @@ export default async function OnboardingPage({ searchParams }: PageProps<'/onboa
               <span className="hint block">クラブ内で表示される名前です（フルネーム推奨。例: 山田花子（太郎の母））</span>
             </label>
           )}
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" name="agree" className="mt-1 h-5 w-5" required />
-            <span>
-              <Link href="/terms" target="_blank" className="text-brand underline">利用規約</Link>と
-              <Link href="/privacy" target="_blank" className="text-brand underline">プライバシーポリシー</Link>に同意します
-            </span>
-          </label>
           {error && <p className="text-sm text-danger">入力内容を確認してください。</p>}
           <button className="btn-primary w-full">次へ</button>
         </form>
