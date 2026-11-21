@@ -23,11 +23,13 @@ export async function sendRsvpReminders(now = new Date()) {
     const targets = await eventTargetChildIds(e.id)
     const responded = new Set((await sql<{ child_id: string }[]>`select child_id from rsvps where event_id = ${e.id}`).map((r) => r.child_id))
     const pending = targets.filter((c) => !responded.has(c))
-    const recipients = await guardiansOf(pending)
+    // 「非表示」にした人には送らない
+    const hiddenBy = new Set((await sql<{ profile_id: string }[]>`select profile_id from rsvp_hidden where event_id = ${e.id}`).map((r) => r.profile_id))
+    const recipients = (await guardiansOf(pending)).filter((id) => !hiddenBy.has(id))
     if (recipients.length) {
       await notify(recipients, 'reminder', {
-        title: `回答の締切が近づいています`,
-        body: `「${e.title}」（${fmtDateTime(e.starts_at)}）の部内締めは ${fmtDateTime(e.member_deadline)} です。「参加する」か「見送る」を回答してください`,
+        title: `申込の締切が近づいています`,
+        body: `「${e.title}」（${fmtDateTime(e.starts_at)}）の部内締めは ${fmtDateTime(e.member_deadline)} です。参加する場合は「参加する」を押してください`,
         url: `/events/${e.id}`,
       })
       sent += recipients.length

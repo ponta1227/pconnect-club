@@ -72,7 +72,7 @@ test.describe.serial('主要フロー', () => {
     tournamentUrl = new URL(admin.url()).pathname
     await expect(admin.getByText(/部内締め: /)).toBeVisible()
     await expect(admin.getByText(/大会の申込締切:/)).toBeVisible()
-    await expect(admin.getByRole('heading', { name: '未回答 3人' })).toBeVisible()
+    await expect(admin.getByRole('heading', { name: 'まだ何もしていない 3人' })).toBeVisible()
 
     // お知らせが自動で作られ、予定が付いている
     await admin.goto('/board')
@@ -144,7 +144,7 @@ test.describe.serial('主要フロー', () => {
     await expect(parent.getByRole('button', { name: '山田太郎 欠席・遅刻を連絡' })).toBeVisible()
   })
 
-  test('大会の回答：ホームからそのまま参加・見送り、定員・キャンセル待ち・自動繰り上げ', async () => {
+  test('大会の回答：ホームからそのまま参加・非表示、定員・キャンセル待ち・自動繰り上げ', async () => {
     // ホームの「やること」に大会が出て、その場で回答できる
     await parent.goto('/')
     const todo = parent.locator('article').filter({ hasText: '市民大会' })
@@ -162,30 +162,37 @@ test.describe.serial('主要フロー', () => {
     // 全員ぶん回答したので「やること」は空になる（お知らせも既読になる）
     await expect(parent.getByText('いま対応が必要なことはありません')).toBeVisible()
 
-    // 太郎を見送りに変えると、花子が自動で繰り上がる
-    await parent.getByRole('button', { name: '山田太郎 の回答を変更' }).click()
-    await parent.getByRole('button', { name: '山田太郎 見送る' }).click()
-    await expect(answered.getByText('見送り', { exact: true })).toBeVisible()
+    // 見送るボタンは無い
+    await expect(parent.getByRole('button', { name: /見送る/ })).toHaveCount(0)
+    // 太郎の参加を取り消すと、花子が自動で繰り上がる。太郎はまた「参加する」を押せる
+    await parent.getByRole('button', { name: '山田太郎 の参加を取り消す' }).click()
+    await expect(answered.getByRole('button', { name: '山田太郎 参加する' })).toBeVisible()
     await expect(answered.getByText('✓ 参加')).toBeVisible()
     await expect(answered.getByText('キャンセル待ち', { exact: true })).toHaveCount(0)
+
+    // 出ない大会は「非表示」でホームから消せる
+    await parent.getByRole('button', { name: '市民大会 を非表示にする' }).click()
+    await expect(parent.getByText('いま対応が必要なことはありません')).toBeVisible()
 
     // 掲示板のお知らせの中でも回答が見える。申込締切は保護者には見えない
     await parent.goto('/board')
     await parent.locator('a').filter({ hasText: '市民大会' }).click()
     await expect(parent.getByText('参加しますか？')).toBeVisible()
-    await expect(parent.getByRole('button', { name: '山田花子 の回答を変更' })).toBeVisible()
+    await expect(parent.getByRole('button', { name: '山田花子 の参加を取り消す' })).toBeVisible()
+    // 非表示にしても、予定・お知らせからはあとで参加できる
+    await expect(parent.getByRole('button', { name: '山田太郎 参加する' })).toBeVisible()
     await parent.goto(tournamentUrl)
     await expect(parent.getByText(/大会の申込締切/)).toHaveCount(0)
     await expect(parent.getByText(/回答の状況/)).toHaveCount(0)
 
     // 管理者：回答状況が数字で見え、聞き取った回答を代わりに入力できる
     await admin.goto(tournamentUrl)
-    await expect(admin.getByRole('heading', { name: '未回答 1人' })).toBeVisible()
+    await expect(admin.getByRole('heading', { name: 'まだ何もしていない 1人' })).toBeVisible()
     await expect(admin.getByText('保護者が未登録のため、通知が届きません')).toBeVisible()
     await expect(admin.getByRole('button', { name: '未回答の保護者に催促を送る' })).toBeDisabled()
     await admin.getByRole('button', { name: '佐藤一郎 を見送りにする' }).click()
     await expect(admin.getByText('全員が回答済みです。')).toBeVisible()
-    await expect(admin.getByText('見送り 2人')).toBeVisible()
+    await expect(admin.getByText('非表示・見送り 2人')).toBeVisible()
   })
 
   test('会場タブレットで到着 → 保護者の画面に反映', async ({ browser }) => {

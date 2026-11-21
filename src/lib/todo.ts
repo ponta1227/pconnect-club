@@ -79,8 +79,14 @@ export const getTodos = cache(async (): Promise<Todos> => {
         return { id: k.id, full_name: k.full_name, status: p.status, companions: p.companions ?? 0 }
       }),
   }))
-  const rsvps = withKids.filter((e) => e.kids.some((k) => k.status === null))
-  const answered = withKids.filter((e) => e.kids.every((k) => k.status !== null))
+  // 「非表示」にした大会・イベントは出さない（予定からはいつでも参加できる）
+  const hidden = eventIds.length
+    ? new Set((await sql<{ event_id: string }[]>`
+        select event_id from rsvp_hidden where profile_id = ${user.id} and event_id = any(${eventIds}::uuid[])`).map((r) => r.event_id))
+    : new Set<string>()
+  const shown = withKids.filter((e) => !hidden.has(e.id))
+  const rsvps = shown.filter((e) => e.kids.some((k) => k.status === null))
+  const answered = shown.filter((e) => e.kids.every((k) => k.status !== null))
   const pendingEventIds = rsvps.map((e) => e.id)
 
   // ---- 未読のお知らせ（自分のクラス宛て・全員宛て）。回答待ちの予定の告知は上のカードで足りるので除く

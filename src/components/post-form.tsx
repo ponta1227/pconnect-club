@@ -45,7 +45,7 @@ export function PostForm({
                 <option key={e.id} value={e.id}>{e.label}</option>
               ))}
             </select>
-            <span className="hint block">大会・イベントを付けると、保護者はこのお知らせの中で「参加する／見送る」を回答できます。</span>
+            <span className="hint block">大会・イベントを付けると、保護者はこのお知らせの中で「参加する」を押せます。</span>
           </label>
         )}
         {classes.length > 0 && (

@@ -63,7 +63,15 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
         from children c where c.id = any(${targetIds}::uuid[]) order by c.kana, c.full_name`
     : []
   const answeredIds = new Set(rsvps.map((r) => r.child_id))
-  const unanswered = targets.filter((c) => !answeredIds.has(c.id))
+  // 保護者が「非表示」にした子（＝今のところ参加しない）と、まだ何もしていない子に分ける
+  const hiddenKidIds = targetIds.length
+    ? new Set((await sql<{ child_id: string }[]>`
+        select distinct gc.child_id from rsvp_hidden h join guardian_children gc on gc.profile_id = h.profile_id and gc.status = 'approved'
+        where h.event_id = ${id} and gc.child_id = any(${targetIds}::uuid[])`).map((r) => r.child_id))
+    : new Set<string>()
+  const notJoined = targets.filter((c) => !answeredIds.has(c.id))
+  const hiddenKids = notJoined.filter((c) => hiddenKidIds.has(c.id))
+  const unanswered = notJoined.filter((c) => !hiddenKidIds.has(c.id))
 
   // ---- 練習：到着・欠席
   const arrivals = e.uses_arrival
@@ -193,8 +201,8 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
               {(
                 [
                   ['参加', going.length + waiting.length, false],
-                  ['見送り', declined.length, false],
-                  ['未回答', unanswered.length, unanswered.length > 0],
+                  ['非表示・見送り', hiddenKids.length + declined.length, false],
+                  ['まだ', unanswered.length, unanswered.length > 0],
                 ] as const
               ).map(([label, n, hot]) => (
                 <div key={label}>
@@ -215,13 +223,14 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
               {e.entry_deadline && <span className="block">大会の申込締切: {fmtDateTime(e.entry_deadline)}</span>}
             </p>
             <div>
-              <h4 className="mb-2 text-sm font-bold">未回答 {unanswered.length}人</h4>
+              <h4 className="mb-2 text-sm font-bold">まだ何もしていない {unanswered.length}人</h4>
               <UnansweredList eventId={id} kids={unanswered} />
             </div>
-            {declined.length > 0 && (
+            {hiddenKids.length + declined.length > 0 && (
               <details>
-                <summary className="cursor-pointer text-sm font-bold">見送り {declined.length}人</summary>
-                <p className="mt-2 text-sm leading-7 text-muted">{declined.map((r) => r.full_name).join('、')}</p>
+                <summary className="cursor-pointer text-sm font-bold">非表示・見送り {hiddenKids.length + declined.length}人</summary>
+                <p className="mt-2 text-sm leading-7 text-muted">{[...hiddenKids.map((c) => c.full_name), ...declined.map((r) => r.full_name)].join('、')}</p>
+                <p className="hint mt-1">保護者がホームで「非表示」にした子です。あとから参加することもあります。</p>
               </details>
             )}
             <div className="flex flex-wrap gap-2 border-t border-line pt-3">

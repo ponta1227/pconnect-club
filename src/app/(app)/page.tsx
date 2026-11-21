@@ -8,7 +8,7 @@ import { practiceKidsFor } from '@/lib/makeup'
 import { addDays, fmtDate, fmtDateTime, fmtRelative, fmtTime, jstDateStr, startOfJstDay } from '@/lib/time'
 import { Page } from '@/components/ui'
 import { EventRow } from '@/components/event-card'
-import { RsvpRows } from '@/components/rsvp'
+import { HideTodoButton, RsvpRows } from '@/components/rsvp'
 import { AbsenceRows, type AbsenceKid } from '@/components/absence'
 import { IconAlert, IconBoard, IconCheck, IconChevron, IconPin, IconPoll, IconSearch } from '@/components/icons'
 import { Logo } from '@/components/logo'
@@ -208,6 +208,9 @@ export default async function HomePage() {
                   <IconChevron className="h-5 w-5 shrink-0 text-muted" />
                 </Link>
               ))}
+              {todos.rsvps.length > 0 && (
+                <p className="hint px-1">出ない大会・イベントは「非表示」でここから消せます。あとで出たくなったら「予定」から参加できます。</p>
+              )}
             </div>
           )}
         </section>
@@ -326,7 +329,7 @@ export default async function HomePage() {
   )
 }
 
-/** 大会・イベントの回答カード。ホームでそのまま「参加する／見送る」を押せる */
+/** 大会・イベントの回答カード。ホームでそのまま「参加する」を押せ、出ないものは「非表示」にできる */
 function RsvpCard({ e, now, todo = false }: { e: RsvpTodo; now: Date; todo?: boolean }) {
   return (
     <article className={todo ? 'todo-card' : 'card'}>
@@ -350,6 +353,12 @@ function RsvpCard({ e, now, todo = false }: { e: RsvpTodo; now: Date; todo?: boo
         <div className="border-t border-line pt-3">
           <RsvpRows eventId={e.id} kids={e.kids} open allowCompanions={e.allow_companions} />
         </div>
+        {todo && (
+          <div className="-mb-2 flex items-center justify-end gap-1 text-xs text-muted">
+            <span>出ないときは</span>
+            <HideTodoButton eventId={e.id} title={e.title} />
+          </div>
+        )}
       </div>
     </article>
   )

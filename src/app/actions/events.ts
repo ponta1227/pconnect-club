@@ -175,7 +175,7 @@ export async function saveEvent(_prev: FormState, fd: FormData): Promise<FormSta
       })
       notifyLater((await adultsForClasses(v.class_ids)).filter((id) => id !== user.id), 'post', {
         title: v.title,
-        body: `${fmtDateTime(startsAt)} 参加・見送りの回答をお願いします${memberDeadline ? `（部内締め ${fmtDateTime(memberDeadline)}）` : ''}`,
+        body: `${fmtDateTime(startsAt)} 参加する場合は「参加する」を押してください${memberDeadline ? `（部内締め ${fmtDateTime(memberDeadline)}）` : ''}`,
         url: `/board/${postId}`,
       })
     } else if (v.notify) {
@@ -348,6 +348,27 @@ export async function answerRsvp(eventId: string, childId: string, answer: Answe
   return { status: r.status }
 }
 
+/** ホームの「やること」から非表示にする（回答はしない。あとで予定から参加できる） */
+export async function hideRsvpTodo(eventId: string) {
+  const user = await requireUser()
+  const [e] = await sql`select 1 from events where id = ${eventId}`
+  if (!e) throw new Error('予定が見つかりません')
+  await sql`insert into rsvp_hidden (profile_id, event_id) values (${user.id}, ${eventId}) on conflict do nothing`
+  // 大会のお知らせも既読にして、掲示板の未読に残さない
+  await sql`
+    insert into post_reads (post_id, profile_id)
+    select p.id, ${user.id} from posts p where p.event_id = ${eventId}
+    on conflict do nothing`
+  refresh()
+}
+
+/** 非表示を取り消す（ホームに戻す） */
+export async function unhideRsvpTodo(eventId: string) {
+  const user = await requireUser()
+  await sql`delete from rsvp_hidden where profile_id = ${user.id} and event_id = ${eventId}`
+  refresh()
+}
+
 /** 回答を取り消して未回答に戻す */
 export async function clearRsvp(eventId: string, childId: string) {
   const user = await requireUser()
@@ -367,9 +388,10 @@ export async function nudgeUnanswered(eventId: string) {
   const targets = await eventTargetChildIds(eventId)
   const answered = new Set((await sql<{ child_id: string }[]>`select child_id from rsvps where event_id = ${eventId}`).map((r) => r.child_id))
   const pending = targets.filter((c) => !answered.has(c))
-  const recipients = await guardiansOf(pending)
+  const hiddenBy = new Set((await sql<{ profile_id: string }[]>`select profile_id from rsvp_hidden where event_id = ${eventId}`).map((r) => r.profile_id))
+  const recipients = (await guardiansOf(pending)).filter((id) => !hiddenBy.has(id))
   notifyLater(recipients, 'reminder', {
-    title: '参加・見送りの回答をお願いします',
+    title: '参加する場合は申込をお願いします',
     body: `「${e.title}」（${fmtDateTime(e.starts_at)}）${e.member_deadline ? `の部内締めは ${fmtDateTime(e.member_deadline)} です` : 'の回答がまだです'}`,
     url: `/events/${eventId}`,
   })
