@@ -37,8 +37,13 @@
 - 予定の中止・休み（`cancelEvent` / `setPracticeOff`）は `onPracticeCancelled`、戻すときは `onPracticeRestored` を必ず呼ぶ。
 - 入会の流れ: 招待リンクに `audience`（existing=BANDから移行／new=新規）。手順は `src/lib/enroll.ts`。GoogleフォームURL・決済URLは `app_settings`（管理者メニュー → 招待リンク）。
 
+## ログインの方法
+- 保護者: LINE（`/api/auth/line/*`）か、メールアドレス＋6桁の確認コード（`/login/email`、`src/lib/login.ts`・`src/app/actions/login.ts`）。メールは `RESEND_API_KEY` があるときだけ画面に出る（`env.emailLoginEnabled()`）。新しい人は招待リンクが必要。どちらも最後は `resolveLogin()`（`src/lib/invites.ts`）。
+- 子ども: 保護者が「お子さん・家族の管理」でログインIDとパスワードを決めて作る（`createChildLogin`）。管理者の承認で使える。`/login/kid` で入る。パスワードは保護者が `resetChildPassword` で変える（端末はログアウト）。5回まちがえると15分ロック。無効にするとIDは空く。
+- E2E ではメールが届かないので `e2e/helpers.ts` の `setEmailCode` でDBのコードを置きかえる。
+
 ## クラブのご案内
-- 文章は `app_settings.guide_text`（`## ` で始まる行が見出し・目次）。管理者メニュー → クラブのご案内 で編集。表示は `/rules`、部品は `src/components/club-guide.tsx`。
+- 文章は `app_settings.guide_text`（`## ` で始まる行が見出し・目次、`![説明](/guide/xxx.jpg)` の行は写真。写真は `public/guide/` に置く）。管理者メニュー → クラブのご案内 で編集。表示は `/rules`、部品は `src/components/club-guide.tsx`。
 - 入会の手順に「クラブのご案内」（step=guide）があり、「確認しました」で `profiles.guide_read_version` を更新。編集時に「もう一度確認してもらう」で `guide_version` が上がり、未確認の大人は「やること」に出る（`src/lib/guide.ts` の `guideUnread`）。子どもアカウントは対象外。
 
 ## 保護者の表示（管理者のプレビュー）

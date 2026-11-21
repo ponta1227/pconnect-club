@@ -52,6 +52,7 @@ export async function approveChildAccount(profileId: string) {
 export async function rejectChildAccount(profileId: string) {
   await admin()
   await sql`update child_accounts set status = 'revoked' where profile_id = ${profileId}`
+  await sql`update profiles set login_id = null, password_hash = null where id = ${profileId}`
   await sql`delete from sessions where profile_id = ${profileId}`
   await sql`delete from chat_members where profile_id = ${profileId}`
   refresh()
@@ -91,6 +92,7 @@ export async function saveChild(formData: FormData) {
         const revoked = await tx<{ profile_id: string }[]>`
           update child_accounts set status = 'revoked' where child_id = ${id} and status in ('pending', 'active') returning profile_id`
         for (const r of revoked) {
+          await tx`update profiles set login_id = null, password_hash = null where id = ${r.profile_id}`
           await tx`delete from sessions where profile_id = ${r.profile_id}`
           await tx`delete from chat_members where profile_id = ${r.profile_id}`
         }
@@ -260,7 +262,7 @@ export async function removeMember(profileId: string) {
   if (target?.role === 'admin') throw new Error('管理者は先に「メンバーにする」で権限を外してください')
   await sql.begin(async (tx) => {
     await tx`
-      update profiles set deleted_at = now(), display_name = '退会したメンバー', line_user_id = null,
+      update profiles set deleted_at = now(), display_name = '退会したメンバー', line_user_id = null, login_id = null, password_hash = null,
         email = null, email_verified = false, avatar_url = null
       where id = ${profileId}`
     await tx`delete from guardian_children where profile_id = ${profileId}`

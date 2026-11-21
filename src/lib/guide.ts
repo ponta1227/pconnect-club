@@ -21,9 +21,15 @@ export async function guideUnread(profileId: string, isChild: boolean): Promise<
   return row?.unread ?? false
 }
 
-export type GuideBlock = { kind: 'heading'; text: string; id: string } | { kind: 'para'; lines: string[] }
+export type GuideBlock =
+  | { kind: 'heading'; text: string; id: string }
+  | { kind: 'para'; lines: string[] }
+  | { kind: 'image'; src: string; caption: string }
 
-/** 「## 見出し」と空行区切りの段落に分ける */
+/** 「![説明](/guide/xxx.jpg)」の行は写真。アプリ内の /guide/ の画像と https の画像だけ */
+const IMAGE_LINE = /^!\[([^\]]*)\]\((\/guide\/[\w.-]+|https:\/\/[^\s)]+)\)$/
+
+/** 「## 見出し」・写真の行・空行区切りの段落に分ける */
 export function parseGuide(text: string): GuideBlock[] {
   const blocks: GuideBlock[] = []
   let para: string[] = []
@@ -34,7 +40,11 @@ export function parseGuide(text: string): GuideBlock[] {
   let n = 0
   for (const raw of text.replace(/\r\n/g, '\n').split('\n')) {
     const line = raw.trimEnd()
-    if (line.startsWith('## ')) {
+    const img = line.trim().match(IMAGE_LINE)
+    if (img) {
+      flush()
+      blocks.push({ kind: 'image', src: img[2], caption: img[1] })
+    } else if (line.startsWith('## ')) {
       flush()
       blocks.push({ kind: 'heading', text: line.slice(3).trim(), id: `s${++n}` })
     } else if (!line.trim()) flush()

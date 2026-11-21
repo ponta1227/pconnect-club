@@ -10,7 +10,7 @@ import { InitialCredits, WeekdayPicker } from '@/components/enroll'
 import { creditBalances } from '@/lib/makeup'
 import { practiceSlots } from '@/lib/schedule'
 import { enrollState } from '@/lib/enroll'
-import { ChildAccountInvite, FamilyInvite } from '@/components/family-invites'
+import { ChildAccountInvite, ChildPasswordReset, FamilyInvite } from '@/components/family-invites'
 
 export const metadata = { title: 'お子さん・家族の管理' }
 
@@ -33,7 +33,9 @@ export default async function ChildrenPage() {
         sql<{ child_id: string; profile_id: string; name: string; via: string }[]>`
           select gc.child_id, gc.profile_id, p.display_name as name, gc.via from guardian_children gc join profiles p on p.id = gc.profile_id
           where gc.child_id = any(${ids}::uuid[]) and gc.status = 'approved' and gc.profile_id <> ${user.id} and p.deleted_at is null`,
-        sql<{ child_id: string; status: string }[]>`select child_id, status from child_accounts where child_id = any(${ids}::uuid[]) and status in ('pending', 'active')`,
+        sql<{ child_id: string; status: string; login_id: string | null }[]>`
+          select ca.child_id, ca.status, p.login_id from child_accounts ca join profiles p on p.id = ca.profile_id
+          where ca.child_id = any(${ids}::uuid[]) and ca.status in ('pending', 'active')`,
       ])
     : [[], []]
 
@@ -87,9 +89,19 @@ export default async function ChildrenPage() {
               <div className="border-t border-line pt-3">
                 <p className="mb-1 text-xs font-bold text-muted">子どもアカウント（本人用）</p>
                 {acc ? (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="flex-1">{acc.status === 'active' ? '利用中' : '管理者の承認待ち'}</span>
-                    <ActionButton action={revokeChildAccount.bind(null, k.id)} className="btn-ghost btn-sm text-danger" confirm="子どもアカウントを無効にしますか？">無効にする</ActionButton>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1">{acc.status === 'active' ? '利用中' : '管理者の承認待ち'}</span>
+                      <ActionButton action={revokeChildAccount.bind(null, k.id)} className="btn-ghost btn-sm text-danger" confirm="子どもアカウントを無効にしますか？">無効にする</ActionButton>
+                    </div>
+                    {acc.login_id ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="flex-1">ログインID: <b className="num select-all">{acc.login_id}</b></span>
+                        <ChildPasswordReset childId={k.id} childName={k.full_name} />
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted">LINEでログインする子どもアカウントです。</p>
+                    )}
                   </div>
                 ) : (
                   <ChildAccountInvite childId={k.id} childName={k.full_name} />

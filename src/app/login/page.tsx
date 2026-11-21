@@ -31,6 +31,16 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
       <a href="/api/auth/line/start" className="btn w-full bg-[#06C755] text-white hover:brightness-95">
         LINEでログイン
       </a>
+      <div className="space-y-2">
+        {env.emailLoginEnabled() && (
+          <Link href="/login/email" className="btn-secondary w-full">
+            メールアドレスでログイン
+          </Link>
+        )}
+        <Link href="/login/kid" className="btn-ghost w-full">
+          子ども用アカウントでログイン
+        </Link>
+      </div>
       <p className="text-center text-xs text-muted">
         ログインすると<Link href="/terms" className="underline">利用規約</Link>と
         <Link href="/privacy" className="underline">プライバシーポリシー</Link>に同意したものとみなします。

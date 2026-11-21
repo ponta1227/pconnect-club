@@ -33,7 +33,7 @@ export default async function JoinPage({ params }: PageProps<'/join/[token]'>) {
     invite.kind === 'club' ? 'P-CONNECT Jr. に参加' : invite.kind === 'family' ? '家族として参加' : '子どもアカウントで参加'
   const description =
     invite.kind === 'club'
-      ? 'LINEでログインするとクラブに参加できます。参加後に、お子さんを名簿から選んで登録してください。'
+      ? `${env.emailLoginEnabled() ? 'LINEかメールアドレス' : 'LINE'}でログインすると、クラブに参加できます。参加後に、お子さんを名簿から選んで登録してください。`
       : invite.kind === 'family'
         ? `${names}の家族として参加します。保護者と同じように予定の確認や連絡ができます。`
         : `${names}本人のアカウントを作ります。クラブの管理者が承認すると使えるようになります。お子さん本人のLINEでログインしてください。`
@@ -51,9 +51,16 @@ export default async function JoinPage({ params }: PageProps<'/join/[token]'>) {
           <Link href="/" className="btn-primary w-full">ホームへ</Link>
         </div>
       ) : (
-        <a href={`/api/auth/line/start?invite=${encodeURIComponent(token)}`} className="btn w-full bg-[#06C755] text-white">
-          LINEでログインして参加
-        </a>
+        <div className="space-y-3">
+          <a href={`/api/auth/line/start?invite=${encodeURIComponent(token)}`} className="btn w-full bg-[#06C755] text-white">
+            LINEでログインして参加
+          </a>
+          {env.emailLoginEnabled() && invite.kind !== 'child' && (
+            <Link href={`/login/email?invite=${encodeURIComponent(token)}`} className="btn-secondary w-full">
+              LINEを使っていない方（メールアドレスで参加）
+            </Link>
+          )}
+        </div>
       )}
       {env.devLoginEnabled() && (
         <form action={devJoin} className="card space-y-2 p-4">

@@ -95,7 +95,7 @@ export async function leaveClub(formData: FormData) {
   }
   await sql.begin(async (tx) => {
     await tx`
-      update profiles set deleted_at = now(), display_name = '退会したメンバー', line_user_id = null,
+      update profiles set deleted_at = now(), display_name = '退会したメンバー', line_user_id = null, login_id = null, password_hash = null,
         email = null, email_verified = false, avatar_url = null, role = 'member'
       where id = ${user.id}`
     await tx`delete from guardian_children where profile_id = ${user.id}`

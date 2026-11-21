@@ -15,5 +15,7 @@ export const env = {
   storageBucket: () => process.env.STORAGE_BUCKET ?? 'club-files',
   cronSecret: () => process.env.CRON_SECRET ?? '',
   // 開発用ログイン。本番ビルドでは常に無効。
+  /** メールでのログイン（確認コードを送れるとき。開発中は画面にコードを出さずログに出す） */
+  emailLoginEnabled: () => !!process.env.RESEND_API_KEY || (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_LOGIN === '1'),
   devLoginEnabled: () => process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_LOGIN === '1',
 }

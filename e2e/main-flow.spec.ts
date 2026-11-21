@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { addDaysJst, agreeTerms, finishOnboarding, loginAs, newUser, todayDow, todayJst } from './helpers'
+import { addDaysJst, agreeTerms, finishOnboarding, loginAs, newUser, setEmailCode, todayDow, todayJst } from './helpers'
 
 const DOW = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -290,14 +290,25 @@ test.describe.serial('主要フロー', () => {
     await parent.goto('/children')
     const section = parent.locator('section').filter({ hasText: '山田太郎' }).filter({ hasText: '子どもアカウント（本人用）' })
     await section.getByRole('button', { name: '子どもアカウントを作る' }).click()
+    await section.getByLabel('山田太郎 のログインID').fill('ab')
+    await section.getByLabel('山田太郎 のパスワード').fill('taro123')
     await section.locator('input[type=checkbox]').check()
-    await section.getByRole('button', { name: '招待リンクを作る' }).click()
-    const url = await section.locator('p.break-all').textContent()
+    await section.getByRole('button', { name: 'このIDとパスワードで作る' }).click()
+    await expect(section.getByText(/ログインIDは、半角/)).toBeVisible()
+    await section.getByLabel('山田太郎 のログインID').fill('Taro2015')
+    await section.getByRole('button', { name: 'このIDとパスワードで作る' }).click()
+    await expect(section.getByText('taro2015')).toBeVisible()
 
+    // 子どもはLINEなしで、IDとパスワードでログイン（まちがえると入れない）
     const { page: child } = await newUser(browser)
-    await child.goto(new URL(url!).pathname)
-    await child.locator('input[name=name]').fill('たろう')
-    await child.getByRole('button', { name: 'この名前で参加' }).click()
+    await child.goto('/login')
+    await child.getByRole('link', { name: '子ども用アカウントでログイン' }).click()
+    await child.locator('input[name=login_id]').fill('taro2015')
+    await child.locator('input[name=password]').fill('wrong-pass')
+    await child.getByRole('button', { name: 'ログイン' }).click()
+    await expect(child.getByText('ログインIDかパスワードがちがいます')).toBeVisible()
+    await child.locator('input[name=password]').fill('taro123')
+    await child.getByRole('button', { name: 'ログイン' }).click()
     await expect(child).toHaveURL(/\/pending/)
     await expect(child.getByRole('heading', { name: '承認をお待ちください' })).toBeVisible()
 
@@ -319,6 +330,22 @@ test.describe.serial('主要フロー', () => {
     await expect(child.getByRole('heading', { name: /参加者/ })).toHaveCount(0)
     await expect(child.getByText(/回答の状況/)).toHaveCount(0)
     await child.goto('/members')
+    await expect(child).toHaveURL(/\/$/)
+
+    // 保護者がパスワードを変えると、子どもの端末はログアウトされ、新しいパスワードで入れる
+    await parent.goto('/children')
+    const sec2 = parent.locator('section').filter({ hasText: '山田太郎' }).filter({ hasText: '利用中' })
+    await expect(sec2.getByText('taro2015')).toBeVisible()
+    await sec2.getByRole('button', { name: 'パスワードを変える' }).click()
+    await sec2.getByLabel('山田太郎 の新しいパスワード').fill('newpass9')
+    await sec2.getByRole('button', { name: '変える', exact: true }).click()
+    await expect(sec2.getByText('新しいパスワードにしました')).toBeVisible()
+    await child.goto('/')
+    await expect(child).toHaveURL(/\/login/)
+    await child.goto('/login/kid')
+    await child.locator('input[name=login_id]').fill('taro2015')
+    await child.locator('input[name=password]').fill('newpass9')
+    await child.getByRole('button', { name: 'ログイン' }).click()
     await expect(child).toHaveURL(/\/$/)
 
     // 保護者が無効にしたら、APIからも何も読めない
@@ -435,5 +462,49 @@ test.describe.serial('主要フロー', () => {
     await expect(parent.getByRole('button', { name: '確認しました' })).toHaveCount(0)
     await parent.goto('/')
     await expect(parent.getByRole('link', { name: /クラブのご案内/ })).toHaveCount(0)
+  })
+  test('LINEを使っていない保護者：メールアドレスと確認コードで参加・ログイン', async ({ browser }) => {
+    const { page: mom } = await newUser(browser)
+    // 招待なしで知らないメールアドレスは入れない
+    await mom.goto('/login')
+    await mom.getByRole('link', { name: 'メールアドレスでログイン' }).click()
+    await mom.locator('input[name=email]').fill('stranger@example.com')
+    await mom.getByRole('button', { name: '確認コードを送る' }).click()
+    await expect(mom.getByText(/このメールアドレスは登録されていません/)).toBeVisible()
+
+    // 招待リンクから、名前とメールで参加
+    await mom.goto(invitePath)
+    await mom.getByRole('link', { name: /メールアドレスで参加/ }).click()
+    await mom.waitForURL(/\/login\/email\?invite=/)
+    await mom.waitForLoadState('networkidle') // 開発サーバーの再コンパイルで入力が消えないように
+    await mom.locator('input[name=name]').fill('鈴木母')
+    await mom.locator('input[name=email]').fill('Suzuki@Example.com')
+    await mom.getByRole('button', { name: '確認コードを送る' }).click()
+    await expect(mom).toHaveURL(/step=code/)
+    await setEmailCode('suzuki@example.com', '246810')
+    await mom.locator('input[name=code]').fill('111111')
+    await mom.getByRole('button', { name: 'ログイン' }).click()
+    await expect(mom.getByText(/確認コードがちがいます/)).toBeVisible()
+    await mom.locator('input[name=code]').fill('246810')
+    await mom.getByRole('button', { name: 'ログイン' }).click()
+    await agreeTerms(mom)
+    await finishOnboarding(mom)
+    await mom.goto('/more')
+    await expect(mom.getByText('鈴木母')).toBeVisible()
+
+    // 別の端末から、同じメールアドレスでログインすると同じアカウントに入る
+    const { page: again } = await newUser(browser)
+    await again.goto('/login/email')
+    await again.waitForLoadState('networkidle')
+    await again.locator('input[name=email]').fill('suzuki@example.com')
+    await expect(again.locator('input[name=name]')).toHaveCount(0)
+    await again.getByRole('button', { name: '確認コードを送る' }).click()
+    await expect(again).toHaveURL(/step=code/)
+    await setEmailCode('suzuki@example.com', '135790')
+    await again.locator('input[name=code]').fill('135 790')
+    await again.getByRole('button', { name: 'ログイン' }).click()
+    await expect(again).toHaveURL(/\/$/)
+    await again.goto('/more')
+    await expect(again.getByText('鈴木母')).toBeVisible()
   })
 })

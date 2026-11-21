@@ -15,7 +15,7 @@ export default async function AdminRulesPage({ searchParams }: PageProps<'/admin
       <Page className="space-y-4">
         {saved && <Notice tone="ok">保存しました。</Notice>}
         <p className="text-sm text-muted">
-          入会するときに全員が読んで「確認しました」を押す文章です。「## 」で始まる行が見出しになり、目次に並びます。URLはそのままリンクになります。
+          入会するときに全員が読んで「確認しました」を押す文章です。「## 」で始まる行が見出しになり、目次に並びます。URLはそのままリンクになります。写真は「![説明](/guide/ファイル名.jpg)」の1行で入ります（写真の追加は木村さんからClaudeに頼んでください）。
         </p>
         <form action={saveGuide} className="space-y-3">
           <textarea name="guide_text" defaultValue={guide.text} className="input min-h-[60vh] font-[inherit] text-sm leading-relaxed" />

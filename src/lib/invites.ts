@@ -36,7 +36,10 @@ export async function findInvite(token: string): Promise<InviteRow | null> {
   return row
 }
 
-export type LoginIdentity = { lineUserId: string; name: string; picture: string | null; email: string | null }
+/**
+ * ログインした人。LINE のときは lineUserId、メールのときは確認コードで確かめたメールアドレス（emailVerified=true）。
+ */
+export type LoginIdentity = { lineUserId: string | null; name: string; picture: string | null; email: string | null; emailVerified?: boolean }
 export type LoginResult = { ok: true; profileId: string } | { ok: false; error: 'invite' | 'setup' | 'used' }
 
 /**
@@ -50,8 +53,14 @@ export async function resolveLogin(
 ): Promise<LoginResult> {
   const invite = opts.inviteToken ? await findInvite(opts.inviteToken) : null
 
-  const [existing] = await sql<{ id: string; account_kind: string }[]>`
-    select id, account_kind from profiles where line_user_id = ${identity.lineUserId} and deleted_at is null`
+  const verified = !!identity.email && (identity.emailVerified ?? !!identity.email)
+  const [existing] = identity.lineUserId
+    ? await sql<{ id: string; account_kind: string }[]>`
+        select id, account_kind from profiles where line_user_id = ${identity.lineUserId} and deleted_at is null`
+    : identity.email && identity.emailVerified
+      ? await sql<{ id: string; account_kind: string }[]>`
+          select id, account_kind from profiles where lower(email) = lower(${identity.email}) and email_verified and deleted_at is null`
+      : []
 
   if (existing) {
     if (invite?.kind === 'family' && existing.account_kind === 'adult') {
@@ -61,12 +70,19 @@ export async function resolveLogin(
     return { ok: true, profileId: existing.id }
   }
 
+  // LINE から届いたメールが別のアカウントで確認済みなら、こちらには保存しない
+  let email = identity.email
+  if (email) {
+    const [taken] = await sql`select 1 from profiles where lower(email) = lower(${email}) and email_verified and deleted_at is null`
+    if (taken) email = null
+  }
+
   const [{ count }] = await sql<{ count: number }[]>`select count(*)::int as count from profiles`
   if (count === 0) {
     if (!env.setupSecret() || opts.setupSecret !== env.setupSecret()) return { ok: false, error: 'setup' }
     const [p] = await sql<{ id: string }[]>`
       insert into profiles (line_user_id, display_name, avatar_url, email, email_verified, role)
-      values (${identity.lineUserId}, ${identity.name}, ${identity.picture}, ${identity.email}, ${!!identity.email}, 'admin')
+      values (${identity.lineUserId}, ${identity.name}, ${identity.picture}, ${email}, ${!!email && verified}, 'admin')
       returning id`
     return { ok: true, profileId: p.id }
   }
@@ -99,7 +115,7 @@ export async function resolveLogin(
   const joinRoute = invite.kind === 'club' ? invite.audience : null
   const [p] = await sql<{ id: string }[]>`
     insert into profiles (line_user_id, display_name, avatar_url, email, email_verified, join_route)
-    values (${identity.lineUserId}, ${identity.name}, ${identity.picture}, ${identity.email}, ${!!identity.email}, ${joinRoute})
+    values (${identity.lineUserId}, ${identity.name}, ${identity.picture}, ${email}, ${!!email && verified}, ${joinRoute})
     returning id`
   if (invite.kind === 'family') await applyFamilyInvite(invite, p.id)
   return { ok: true, profileId: p.id }

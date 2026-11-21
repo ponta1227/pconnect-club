@@ -1,3 +1,5 @@
+import { randomBytes, scryptSync } from 'node:crypto'
+import postgres from 'postgres'
 import { expect, type Browser, type Page } from '@playwright/test'
 
 export async function newUser(browser: Browser) {
@@ -52,4 +54,14 @@ export function todayJst(): string {
 export function addDaysJst(days: number): string {
   const d = new Date(Date.now() + 9 * 3600 * 1000 + days * 86400000)
   return d.toISOString().slice(0, 10)
+}
+
+/** メールの確認コードは実際には届かないので、テスト用DBで最新のコードを決まった値に置きかえる */
+export async function setEmailCode(email: string, code: string) {
+  const db = postgres(process.env.TEST_DATABASE_URL ?? 'postgres://app:app@localhost:5432/pconnect_test', { max: 1, onnotice: () => {} })
+  const salt = randomBytes(16).toString('hex')
+  const hash = `${salt}:${scryptSync(code, salt, 32).toString('hex')}`
+  await db`update email_codes set code_hash = ${hash}
+    where id = (select id from email_codes where email = ${email} order by created_at desc limit 1)`
+  await db.end()
 }

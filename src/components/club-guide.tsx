@@ -19,7 +19,13 @@ export function ClubGuideBody({ blocks }: { blocks: GuideBlock[] }) {
       )}
       <article className="card space-y-3 p-4 text-[15px] leading-relaxed">
         {blocks.map((b, i) =>
-          b.kind === 'heading' ? (
+          b.kind === 'image' ? (
+            <figure key={i} className="space-y-1">
+              {/* eslint-disable-next-line @next/next/no-img-element -- 管理者が差し替える写真なので素のimgで出す */}
+              <img src={b.src} alt={b.caption} loading="lazy" className="w-full rounded-xl border border-line" />
+              {b.caption && <figcaption className="text-center text-sm text-muted">{b.caption}</figcaption>}
+            </figure>
+          ) : b.kind === 'heading' ? (
             <h2 key={b.id} id={b.id} className="scroll-mt-20 border-t border-line pt-4 text-lg font-bold first:border-t-0 first:pt-0">
               {b.text}
             </h2>
