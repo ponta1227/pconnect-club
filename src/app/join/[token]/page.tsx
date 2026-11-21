@@ -5,13 +5,21 @@ import { findInvite } from '@/lib/invites'
 import { getCurrentUser } from '@/lib/auth'
 import { Logo } from '@/components/logo'
 import { devJoin } from '@/app/actions/dev'
+import { redirect } from 'next/navigation'
+import { JoinGate } from '@/components/join-gate'
 
-export const metadata = { title: '招待' }
+export async function generateMetadata({ params }: PageProps<'/join/[token]'>) {
+  const { token } = await params
+  // ここからホーム画面に追加すると、アイコンがこの招待の続きを開く
+  return { title: '招待', manifest: `/join/${encodeURIComponent(token)}/manifest.webmanifest` }
+}
 
 export default async function JoinPage({ params }: PageProps<'/join/[token]'>) {
   const { token } = await params
-  const invite = await findInvite(token)
   const user = await getCurrentUser()
+  const invite = await findInvite(token)
+  // 登録が済んだあとにホーム画面のアイコン（招待リンク）から開いたら、ふつうにホームへ
+  if (user && invite?.kind !== 'family') redirect('/')
 
   if (!invite) {
     return (
@@ -33,7 +41,7 @@ export default async function JoinPage({ params }: PageProps<'/join/[token]'>) {
     invite.kind === 'club' ? 'P-CONNECT Jr. に参加' : invite.kind === 'family' ? '家族として参加' : '子どもアカウントで参加'
   const description =
     invite.kind === 'club'
-      ? `${env.emailLoginEnabled() ? 'LINEかメールアドレス' : 'LINE'}でログインすると、クラブに参加できます。参加後に、お子さんを名簿から選んで登録してください。`
+      ? `${env.emailLoginEnabled() ? 'LINEかメールアドレス' : 'LINE'}でログインすると、クラブに参加できます。参加後に、お子さんの名前を登録してください。`
       : invite.kind === 'family'
         ? `${names}の家族として参加します。保護者と同じように予定の確認や連絡ができます。`
         : `${names}本人のアカウントを作ります。クラブの管理者が承認すると使えるようになります。お子さん本人のLINEでログインしてください。`
@@ -45,12 +53,7 @@ export default async function JoinPage({ params }: PageProps<'/join/[token]'>) {
         <h1 className="mt-4 text-xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-muted">{description}</p>
       </div>
-      {user && invite.kind !== 'family' ? (
-        <div className="space-y-3 text-center">
-          <p className="text-sm">すでに「{user.displayName}」としてログインしています。</p>
-          <Link href="/" className="btn-primary w-full">ホームへ</Link>
-        </div>
-      ) : (
+      <JoinGate>
         <div className="space-y-3">
           <a href={`/api/auth/line/start?invite=${encodeURIComponent(token)}`} className="btn w-full bg-[#06C755] text-white">
             LINEでログインして参加
@@ -61,7 +64,7 @@ export default async function JoinPage({ params }: PageProps<'/join/[token]'>) {
             </Link>
           )}
         </div>
-      )}
+      </JoinGate>
       {env.devLoginEnabled() && (
         <form action={devJoin} className="card space-y-2 p-4">
           <p className="text-xs font-bold text-muted">開発用: LINEなしで参加</p>

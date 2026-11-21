@@ -481,6 +481,8 @@ test.describe.serial('主要フロー', () => {
 
     // 招待リンクから、名前とメールで参加
     await mom.goto(invitePath)
+    // テストはスマホの画面なので、まずホーム画面への追加が案内される
+    await mom.getByRole('button', { name: '追加せずに、このまま登録する' }).click()
     await mom.getByRole('link', { name: /メールアドレスで参加/ }).click()
     await mom.waitForURL(/\/login\/email\?invite=/)
     await mom.waitForLoadState('networkidle') // 開発サーバーの再コンパイルで入力が消えないように
@@ -513,5 +515,35 @@ test.describe.serial('主要フロー', () => {
     await expect(again).toHaveURL(/\/$/)
     await again.goto('/more')
     await expect(again.getByText('鈴木母')).toBeVisible()
+  })
+  test('招待リンクをスマホで開くと、まずホーム画面への追加を案内する', async ({ browser }) => {
+    const ctx = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    })
+    const phone = await ctx.newPage()
+    await phone.goto(invitePath)
+    await expect(phone.getByText('まず、このアプリをホーム画面に追加してください')).toBeVisible()
+    await expect(phone.getByText('「ホーム画面に追加」を選ぶ')).toBeVisible()
+    await expect(phone.getByRole('link', { name: 'LINEでログインして参加' })).toHaveCount(0)
+    await phone.getByRole('button', { name: '追加せずに、このまま登録する' }).click()
+    await expect(phone.getByRole('link', { name: 'LINEでログインして参加' })).toBeVisible()
+
+    // ここから追加したアイコンは、この招待の続きを開く
+    const m = await (await phone.request.get(`${invitePath}/manifest.webmanifest`)).json()
+    expect(m.start_url).toBe(invitePath)
+    expect((await (await phone.request.get('/manifest.webmanifest')).json()).start_url).toBe('/')
+
+    // LINEの中で開いたときは、ブラウザで開き直すよう案内する
+    const lineCtx = await browser.newContext({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari Line/14.0.0' })
+    const inLine = await lineCtx.newPage()
+    await inLine.goto(invitePath)
+    await expect(inLine.getByText('LINEの中で開いています')).toBeVisible()
+
+    // 登録済みの人がアイコン（招待リンク）から開いたら、ホームへ
+    await parent.goto(invitePath)
+    await expect(parent).toHaveURL(/\/$/)
+    await ctx.close()
+    await lineCtx.close()
   })
 })

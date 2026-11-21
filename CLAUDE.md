@@ -43,6 +43,12 @@
 - 子ども: 保護者が「お子さん・家族の管理」でログインIDとパスワードを決めて作る（`createChildLogin`）。管理者の承認で使える。`/login/kid` で入る。パスワードは保護者が `resetChildPassword` で変える（端末はログアウト）。5回まちがえると15分ロック。無効にするとIDは空く。
 - E2E ではメールが届かないので `e2e/helpers.ts` の `setEmailCode` でDBのコードを置きかえる。
 
+## 招待リンクとホーム画面への追加
+- スマホで招待リンク（`/join/[token]`）を開くと、まず「ホーム画面に追加」を案内する（`src/components/join-gate.tsx`）。LINEの中で開いたときはブラウザで開き直すよう案内。「追加せずに、このまま登録する」で先に進める。
+- 招待リンクの画面は専用の manifest（`/join/[token]/manifest.webmanifest`、start_url＝その招待リンク）を使うので、そこから追加したアイコンは招待の続きを開く（iPhoneはホーム画面のアプリとSafariでログインが別のため）。ふだんの manifest は `/manifest.webmanifest`（`src/lib/manifest.ts`）。
+- ログイン済みの人が招待リンクを開いたら（家族招待以外）ホームへ移る。
+- 検索エンジン対策: `robots.ts` で全体を拒否、全レスポンスに `X-Robots-Tag: noindex`。
+
 ## クラブのご案内
 - 文章は `app_settings.guide_text`（`## ` で始まる行が見出し・目次、`![説明](/guide/xxx.jpg)` の行は写真。写真は `public/guide/` に置く）。管理者メニュー → クラブのご案内 で編集。表示は `/rules`、部品は `src/components/club-guide.tsx`。
 - 入会の手順に「クラブのご案内」（step=guide）があり、「確認しました」で `profiles.guide_read_version` を更新。編集時に「もう一度確認してもらう」で `guide_version` が上がり、未確認の大人は「やること」に出る（`src/lib/guide.ts` の `guideUnread`）。子どもアカウントは対象外。

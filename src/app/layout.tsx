@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: { default: "P-CONNECT Jr.", template: "%s | P-CONNECT Jr." },
   description: "P-CONNECT Jr. のクラブ連絡アプリ",
   applicationName: "P-CONNECT Jr.",
+  manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "P-CONNECT Jr.", statusBarStyle: "default" },
   icons: { icon: "/icons/192", apple: "/icons/180" },
   robots: { index: false, follow: false },
