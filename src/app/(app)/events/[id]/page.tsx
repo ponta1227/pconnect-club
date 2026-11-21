@@ -181,14 +181,16 @@ export default async function EventPage({ params }: PageProps<'/events/[id]'>) {
         {/* ---------------- 練習：欠席・遅刻・早退 */}
         {e.uses_arrival && !cancelled && (
           <section className="card space-y-3 p-4">
-            <h3 className="text-lg font-bold">参加・欠席の連絡</h3>
+            <h3 className="text-lg font-bold">{e.self_practice ? '自主練に参加' : '参加・欠席の連絡'}</h3>
             {absenceKids.length > 0 ? (
               <AbsenceRows eventId={id} eventLabel={`${fmtDate(e.starts_at)} ${fmtTime(e.starts_at)} の${e.title}`} kids={absenceKids} ended={ended} />
             ) : (
               <p className="text-sm text-muted">連絡できるお子さんが登録されていません。</p>
             )}
             <p className="text-xs text-muted">
-              参加曜日の練習は、連絡しなければ参加として扱います。休んだ日は振替が1回たまり、ほかの曜日に使えます。到着すると保護者に通知が届きます。
+              {e.self_practice
+                ? '自主練は、場所だけ用意して自分たちで練習する日です。来る人は「参加する」を押してください。振替は使いません（たまりもしません）。'
+                : '参加曜日の練習は、連絡しなければ参加として扱います。休んだ日は振替が1回たまり、ほかの曜日に使えます。到着すると保護者に通知が届きます。'}
             </p>
           </section>
         )}

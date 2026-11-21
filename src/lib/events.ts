@@ -23,6 +23,8 @@ export type EventListItem = {
   type_color: string
   uses_rsvp: boolean
   uses_arrival: boolean
+  /** 自主練（場所だけあり、都度参加・振替なし） */
+  self_practice: boolean
   venue_name: string | null
   venue_text: string
   member_deadline: Date | null
@@ -66,7 +68,7 @@ export async function listEvents(from: Date, to: Date, opts: { classId?: string 
   const classId = opts.classId ?? null
   return sql<EventListItem[]>`
     select e.id, e.title, e.starts_at, e.ends_at, e.all_day, e.status, e.type_id,
-      t.name as type_name, t.color as type_color, t.uses_rsvp, t.uses_arrival,
+      t.name as type_name, t.color as type_color, t.uses_rsvp, t.uses_arrival, e.self_practice,
       v.name as venue_name, e.venue_text, e.member_deadline, e.capacity,
       (select count(*)::int from rsvps r where r.event_id = e.id and r.status = 'going') as going,
       (select count(*)::int from rsvps r where r.event_id = e.id and r.status = 'waitlist') as waitlist,
@@ -86,7 +88,7 @@ export async function getEvent(id: string): Promise<EventDetail | null> {
   if (!/^[0-9a-f-]{36}$/.test(id)) return null
   const [row] = await sql<EventDetail[]>`
     select e.id, e.title, e.starts_at, e.ends_at, e.all_day, e.status, e.type_id,
-      t.name as type_name, t.color as type_color, t.uses_rsvp, t.uses_arrival,
+      t.name as type_name, t.color as type_color, t.uses_rsvp, t.uses_arrival, e.self_practice,
       v.name as venue_name, v.address as venue_address, e.venue_id, e.venue_text,
       e.member_deadline, e.entry_deadline, e.capacity, e.allow_companions,
       e.note, e.meet_time, e.meet_place, e.fee_note, e.series_id, e.created_at, e.updated_at,

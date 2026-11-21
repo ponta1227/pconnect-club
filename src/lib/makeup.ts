@@ -9,6 +9,8 @@ import { jstParts } from './time'
  * - 参加曜日の練習を休むと、振替が1回たまる（欠席連絡・連絡なしで来なかった・クラブ都合の休み）。遅刻・早退ではたまらない。
  * - 参加曜日が1日の人は、ほかの曜日に来るとき振替を1回使う。2日以上の人は使わずに「参加する」を押すだけ。
  * - 振替に期限はない。残り回数 = makeup_credits.delta の合計。
+ * - 自主練（events.self_practice）は、だれの参加曜日にもならない。参加は都度「参加する」で、振替は使わない・たまらない。
+ * - 金曜日などの都度参加の曜日（practice_slots.mode = 'dropin'）は、参加曜日に選べない。
  */
 
 export type Plan = 'none' | 'weekly1' | 'weekly2plus'
@@ -30,11 +32,11 @@ export async function creditBalances(childIds: string[]): Promise<Map<string, nu
   return new Map(rows.map((r) => [r.child_id, r.balance]))
 }
 
-type Practice = { id: string; starts_at: Date; ends_at: Date | null; status: string; uses_arrival: boolean }
+type Practice = { id: string; starts_at: Date; ends_at: Date | null; status: string; uses_arrival: boolean; self_practice: boolean }
 
 export async function loadPractice(eventId: string): Promise<Practice | null> {
   const [e] = await sql<Practice[]>`
-    select e.id, e.starts_at, e.ends_at, e.status, t.uses_arrival
+    select e.id, e.starts_at, e.ends_at, e.status, t.uses_arrival, e.self_practice
     from events e join event_types t on t.id = e.type_id where e.id = ${eventId}`
   return e && e.uses_arrival ? e : null
 }
@@ -46,6 +48,7 @@ export function practiceEnded(e: { starts_at: Date; ends_at: Date | null }, now 
 
 /** この練習が参加曜日にあたる（対象クラスにも入っている）子 */
 export async function regularChildrenFor(e: Practice): Promise<string[]> {
+  if (e.self_practice) return []
   const targets = await eventTargetChildIds(e.id)
   if (targets.length === 0) return []
   const dow = jstParts(e.starts_at).dow
@@ -90,9 +93,9 @@ export async function onPracticeRestored(eventId: string) {
  */
 export async function settleNoShows(now = new Date()): Promise<number> {
   const practices = await sql<Practice[]>`
-    select e.id, e.starts_at, e.ends_at, e.status, t.uses_arrival
+    select e.id, e.starts_at, e.ends_at, e.status, t.uses_arrival, e.self_practice
     from events e join event_types t on t.id = e.type_id
-    where t.uses_arrival and e.status = 'active'
+    where t.uses_arrival and e.status = 'active' and not e.self_practice
       and e.starts_at > ${now}::timestamptz - interval '14 days' and e.starts_at < ${now}::timestamptz`
   let added = 0
   for (const e of practices) {
@@ -119,6 +122,8 @@ export type PracticeKid = {
   weekdays: number[]
   plan: Plan
   regular: boolean
+  /** 自主練（都度参加・振替なし） */
+  self: boolean
   extra: { uses_credit: boolean } | null
   balance: number
   arrived: string | null
@@ -127,7 +132,7 @@ export type PracticeKid = {
 
 /** ある練習についての、指定した子どもたちの状況（参加曜日か・振替での参加・残り回数・到着・欠席連絡） */
 export async function practiceKidsFor(
-  e: { id: string; starts_at: Date },
+  e: { id: string; starts_at: Date; self_practice?: boolean },
   kids: { id: string; full_name: string }[],
   fmtArrival: (d: Date) => string,
 ): Promise<PracticeKid[]> {
@@ -152,7 +157,8 @@ export async function practiceKidsFor(
       full_name: k.full_name,
       weekdays,
       plan: planOf(weekdays),
-      regular: isRegularDay(weekdays, e.starts_at),
+      regular: !e.self_practice && isRegularDay(weekdays, e.starts_at),
+      self: !!e.self_practice,
       extra: r?.uses_credit == null ? null : { uses_credit: r.uses_credit },
       balance: balances.get(k.id) ?? 0,
       arrived: r?.arrived_at ? fmtArrival(r.arrived_at) : null,

@@ -38,10 +38,13 @@ export async function joinExtra(eventId: string, childId: string) {
   if (!(await eventTargetChildIds(e.id)).includes(childId)) throw new Error('この練習の対象ではありません')
   const c = await childRow(childId)
   const plan = planOf(c.weekdays)
-  if (plan === 'none') throw new Error('先に参加曜日を設定してください')
-  if (isRegularDay(c.weekdays, e.starts_at)) throw new Error('この日はもともと参加の曜日です')
+  // 自主練はだれでも都度参加でき、振替は使わない
+  if (!e.self_practice) {
+    if (plan === 'none') throw new Error('先に参加曜日を設定してください')
+    if (isRegularDay(c.weekdays, e.starts_at)) throw new Error('この日はもともと参加の曜日です')
+  }
 
-  const usesCredit = plan === 'weekly1'
+  const usesCredit = !e.self_practice && plan === 'weekly1'
   await sql.begin(async (tx) => {
     // 同じ子の振替を同時に使われないように、子どもの行をロック
     await tx`select id from children where id = ${childId} for update`
@@ -90,8 +93,9 @@ export async function setWeekdays(childId: string, weekdays: number[]) {
   const c = await childRow(childId)
   if (!user.isAdmin && c.weekdays.length > 0) throw new Error('参加曜日の変更は、クラブの管理者に連絡してください')
   if (!user.isAdmin && days.length === 0) throw new Error('参加する曜日を1つ以上選んでください')
-  const slots = (await sql<{ weekday: number }[]>`select weekday from practice_slots`).map((s) => s.weekday)
-  if (slots.length > 0 && days.some((d) => !slots.includes(d))) throw new Error('練習のない曜日は選べません')
+  const slots = (await sql<{ weekday: number }[]>`select weekday from practice_slots where mode = 'regular'`).map((s) => s.weekday)
+  if (days.includes(5) || (slots.length > 0 && days.some((d) => !slots.includes(d))))
+    throw new Error('その曜日は参加曜日にできません（金曜日・自主練は、その都度「参加する」を押してください）')
   await sql`update children set weekdays = ${days}::int[] where id = ${c.id}`
   if (!user.isAdmin) {
     notifyLater(await adminIds(), 'approval', {

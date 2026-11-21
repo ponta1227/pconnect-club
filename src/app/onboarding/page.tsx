@@ -4,7 +4,7 @@ import { requireUser } from '@/lib/auth'
 import { agreeTerms, finishOnboarding } from '@/app/actions/account'
 import { markFormSubmitted, markPaymentReported } from '@/app/actions/enroll'
 import { enrollState, enrollSteps, type EnrollStep } from '@/lib/enroll'
-import { practiceSlots } from '@/lib/schedule'
+import { practiceSlots, selectableSlots } from '@/lib/schedule'
 import { sql } from '@/lib/db'
 import { InitialCredits, NewChildForm, WeekdayPicker, type SetupKid } from '@/components/enroll'
 import { PushToggle } from '@/components/push'
@@ -116,7 +116,7 @@ export default async function OnboardingPage({ searchParams }: PageProps<'/onboa
   if (current === 'children') {
     const slots = await practiceSlots()
     const kids = await setupKids(user.id)
-    const slotList = slots.map((s) => ({ weekday: s.weekday, label: `${s.start_time}〜` }))
+    const slotList = selectableSlots(slots).map((s) => ({ weekday: s.weekday, label: `${s.start_time}〜` }))
     const ready = kids.length > 0 && kids.every((k) => k.weekdays.length > 0) && (enroll.route !== 'existing' || kids.every((k) => k.declared))
     return (
       <main className="mx-auto max-w-sm space-y-5 px-5 py-10">

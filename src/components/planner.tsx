@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
-import { addPractice, fillMonth, removePractice, restorePractice, setPracticeOff, updatePractice } from '@/app/actions/schedule'
+import { addPractice, fillMonth, removePractice, restorePractice, setPracticeOff, setSelfPractice, updatePractice } from '@/app/actions/schedule'
 import { Sheet } from './sheet'
 
 export type PlannerDay = {
@@ -10,12 +10,12 @@ export type PlannerDay = {
   day: number
   dow: number
   past: boolean
-  practice: { id: string; start: string; end: string; venue_id: string | null; venue: string; cancelled: boolean } | null
+  practice: { id: string; start: string; end: string; venue_id: string | null; venue: string; cancelled: boolean; self: boolean } | null
   /** 同じ日の、練習以外の予定（大会など） */
   others: string[]
 }
 type Venue = { id: string; name: string }
-type Slot = { weekday: number; venue_id: string | null; start_time: string; end_time: string }
+type Slot = { weekday: number; venue_id: string | null; start_time: string; end_time: string; mode: 'regular' | 'dropin' | 'self' }
 
 const DOW = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -90,7 +90,7 @@ export function Planner({
                   setSelected(d.date)
                 }}
                 className={`flex min-h-[4.25rem] flex-col items-center gap-0.5 border-t border-line px-0.5 pt-1 ${d.past ? 'opacity-45' : ''}`}
-                aria-label={`${d.day}日(${DOW[d.dow]}) ${p ? (p.cancelled ? '休み' : `${p.start}から ${p.venue}`) : '練習なし'}`}
+                aria-label={`${d.day}日(${DOW[d.dow]}) ${p ? (p.cancelled ? '休み' : `${p.self ? '自主練 ' : ''}${p.start}から ${p.venue}`) : '練習なし'}`}
               >
                 <span
                   className={`num flex h-6 w-6 items-center justify-center rounded-full text-sm ${
@@ -104,6 +104,7 @@ export function Planner({
                     <span className="rounded bg-danger-soft px-1 text-[0.7rem] font-bold text-danger">休み</span>
                   ) : (
                     <>
+                      {p.self && <span className="rounded bg-ok-soft px-1 text-[0.65rem] font-bold leading-tight text-ok">自主</span>}
                       <span className="num text-[0.8rem] leading-none text-brand">{p.start}</span>
                       <span className="max-w-full truncate text-[0.65rem] leading-tight text-muted">{p.venue.slice(0, 2)}</span>
                     </>
@@ -183,9 +184,29 @@ function DaySheet({
   const [end, setEnd] = useState(p?.end ?? slot?.end_time ?? '20:30')
   const [venueId, setVenueId] = useState(p?.venue_id ?? slot?.venue_id ?? venues[0]?.id ?? '')
   const [notify, setNotify] = useState(!day.past)
+  const [self, setSelf] = useState(p?.self ?? slot?.mode === 'self')
   const [editing, setEditing] = useState(false)
   const title = `${Number(day.date.slice(5, 7))}月${day.day}日(${DOW[day.dow]})`
 
+  const kindToggle = (
+    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="練習の種類">
+      {([
+        [false, '練習'],
+        [true, '自主練'],
+      ] as const).map(([v, label]) => (
+        <button
+          key={label}
+          type="button"
+          role="radio"
+          aria-checked={self === v}
+          onClick={() => setSelf(v)}
+          className={`btn ${self === v ? 'bg-brand text-white' : 'border border-line bg-white text-text'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
   const fields = (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
@@ -223,15 +244,17 @@ function DaySheet({
         {!p && (
           <>
             <p className="text-muted">この日は練習が入っていません。</p>
+            {kindToggle}
+            {self && <p className="text-sm text-muted">自主練は、場所だけ用意して自分たちで練習する日です。来る人がその都度「参加する」を押し、振替は使いません。</p>}
             {fields}
             {notifyBox('保護者に知らせる')}
             <button
               type="button"
               className="btn-primary h-13 w-full text-base"
               disabled={pending}
-              onClick={() => run(() => addPractice({ date: day.date, start, end, venueId: venueId || null, notify }))}
+              onClick={() => run(() => addPractice({ date: day.date, start, end, venueId: venueId || null, notify, selfPractice: self }))}
             >
-              練習を入れる
+              {self ? '自主練を入れる' : '練習を入れる'}
             </button>
           </>
         )}
@@ -239,6 +262,7 @@ function DaySheet({
         {p && !p.cancelled && !editing && (
           <>
             <p>
+              {p.self && <span className="chip-ok mr-2 align-middle">自主練</span>}
               <span className="num text-2xl">{p.start} – {p.end}</span>
               <span className="ml-2 font-semibold">{p.venue}</span>
             </p>
@@ -248,6 +272,9 @@ function DaySheet({
             </button>
             <button type="button" className="btn-secondary w-full" onClick={() => setEditing(true)}>
               時間・会場を変える
+            </button>
+            <button type="button" className="btn-secondary w-full" disabled={pending} onClick={() => run(() => setSelfPractice(p.id, !p.self))}>
+              {p.self ? '通常の練習に戻す' : '自主練に切り替える'}
             </button>
             <div className="flex items-center justify-between text-sm">
               <Link href={`/events/${p.id}`} className="font-semibold text-brand underline">予定の画面を開く</Link>

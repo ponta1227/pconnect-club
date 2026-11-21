@@ -35,6 +35,8 @@
 - 振替の残り = `makeup_credits.delta` の合計（期限なし）。たまる: 参加曜日の欠席連絡／連絡なしで来なかった（毎朝の定期処理 `settleNoShows`）／クラブ都合の休み。遅刻・早退ではたまらない。到着が記録されると、その練習でたまった分は取り消す。
 - 参加曜日以外の練習への参加は `practice_extras`。週1日の子は振替を1回使う（`joinExtra`）、週2日以上は使わない。
 - 予定の中止・休み（`cancelEvent` / `setPracticeOff`）は `onPracticeCancelled`、戻すときは `onPracticeRestored` を必ず呼ぶ。
+- いつもの練習の曜日ごとに `practice_slots.mode`（regular=参加曜日に選べる／dropin=都度参加・金曜日は必ずこれ／self=自主練）。参加曜日の選択肢は `selectableSlots()`、`setWeekdays` は金曜と regular 以外を拒否。
+- 自主練は `events.self_practice`（タイトル「自主練」）。だれの参加曜日にもならず、都度 `joinExtra` で参加・振替は使わない・欠席や無断でもたまらない。プランナーで「自主練」を選んで入れる／「自主練に切り替える」（`setSelfPractice`、切り替え時にその日の振替の動きは元に戻す）。
 - お子さんは保護者が名前・よみがな・学年を入力して登録（`registerNewChild`）。名簿に同じ名前の子が1人だけいればその子につなぐ。どちらも管理者の承認待ち。承認画面では同じ名前の子がいると注意を出し、却下すると誰ともつながっていない子は消える。2人目の保護者は「家族を招待」で。
 - 入会の流れ: 招待リンクに `audience`（existing=BANDから移行／new=新規）。手順は `src/lib/enroll.ts`。GoogleフォームURL・決済URLは `app_settings`（管理者メニュー → 招待リンク）。
 

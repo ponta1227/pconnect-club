@@ -23,8 +23,8 @@ export default async function SchedulePage({ searchParams }: PageProps<'/admin/s
   const { start, end } = monthRange(year, month)
 
   const [events, slots, venues] = await Promise.all([
-    sql<{ id: string; title: string; starts_at: Date; ends_at: Date | null; status: string; venue_id: string | null; venue: string; uses_arrival: boolean }[]>`
-      select e.id, e.title, e.starts_at, e.ends_at, e.status, e.venue_id, coalesce(v.name, e.venue_text, '') as venue, t.uses_arrival
+    sql<{ id: string; title: string; starts_at: Date; ends_at: Date | null; status: string; venue_id: string | null; venue: string; uses_arrival: boolean; self_practice: boolean }[]>`
+      select e.id, e.title, e.starts_at, e.ends_at, e.status, e.venue_id, e.self_practice, coalesce(v.name, e.venue_text, '') as venue, t.uses_arrival
       from events e join event_types t on t.id = e.type_id left join venues v on v.id = e.venue_id
       where e.starts_at >= ${start} and e.starts_at < ${end}
       order by e.starts_at`,
@@ -50,6 +50,7 @@ export default async function SchedulePage({ searchParams }: PageProps<'/admin/s
             venue_id: p.venue_id,
             venue: p.venue,
             cancelled: p.status === 'cancelled',
+            self: p.self_practice,
           }
         : null,
       others: todays.filter((e) => !e.uses_arrival && e.status === 'active').map((e) => e.title),
@@ -71,7 +72,7 @@ export default async function SchedulePage({ searchParams }: PageProps<'/admin/s
           today={today}
           days={days}
           venues={venues.map((v) => ({ id: v.id, name: v.name }))}
-          slots={slots.map((s) => ({ weekday: s.weekday, venue_id: s.venue_id, start_time: s.start_time, end_time: s.end_time }))}
+          slots={slots.map((s) => ({ weekday: s.weekday, venue_id: s.venue_id, start_time: s.start_time, end_time: s.end_time, mode: s.mode }))}
           fillable={fillable}
         />
 
@@ -81,7 +82,7 @@ export default async function SchedulePage({ searchParams }: PageProps<'/admin/s
             <span className="text-sm font-normal text-brand group-open:hidden">変更する</span>
           </summary>
           <form action={saveSlots} className="space-y-3 border-t border-line p-4">
-            <p className="text-sm text-muted">ここで決めた内容が、「まとめて入れる」で使われます。すでに入っている予定は変わりません。</p>
+            <p className="text-sm text-muted">ここで決めた内容が、「まとめて入れる」で使われます。すでに入っている予定は変わりません。金曜日は参加曜日に選べず、その都度「参加する」を押す形です。</p>
             {ORDER.map((d) => {
               const s = slots.find((x) => x.weekday === d)
               return (
@@ -97,6 +98,11 @@ export default async function SchedulePage({ searchParams }: PageProps<'/admin/s
                       {venues.map((v) => (
                         <option key={v.id} value={v.id}>{v.name}</option>
                       ))}
+                    </select>
+                    <select name={`mode_${d}`} defaultValue={s?.mode ?? (d === 5 ? 'dropin' : 'regular')} className="input col-span-2" aria-label={`${DOW[d]}曜日の種類`}>
+                      {d !== 5 && <option value="regular">ふつうの練習（参加曜日として選べる）</option>}
+                      <option value="dropin">都度参加（参加曜日には選べない）</option>
+                      <option value="self">自主練（都度参加・振替なし）</option>
                     </select>
                   </div>
                 </fieldset>

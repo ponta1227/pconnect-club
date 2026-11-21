@@ -200,3 +200,36 @@ describe('参加曜日・振替の設定', () => {
     expect(await balance(ids.jiro)).toBe(3)
   })
 })
+
+describe('金曜日と自主練', () => {
+  it('金曜日は参加曜日にできない（管理者も）', async () => {
+    as('admin')
+    await expect(att.setWeekdays(ids.jiro, [5])).rejects.toThrow('参加曜日にできません')
+    await expect(att.setWeekdays(ids.jiro, [2, 5])).rejects.toThrow('参加曜日にできません')
+  })
+
+  it('自主練はだれの参加曜日にもならず、参加しても振替は使わない。休んでも・来なくてもたまらない', async () => {
+    const [type] = await db<{ id: string }[]>`select id from event_types where uses_arrival order by sort limit 1`
+    // 太郎（週1）の参加曜日と同じ曜日の自主練
+    const d = new Date(Date.now() + 9 * 3600e3 + 8 * 86400e3).toISOString().slice(0, 10)
+    const [{ id: selfId }] = await db<{ id: string }[]>`
+      insert into events (type_id, title, starts_at, ends_at, self_practice)
+      values (${type.id}, '自主練', ${d + 'T18:00:00+09:00'}::timestamptz, ${d + 'T21:00:00+09:00'}::timestamptz, true) returning id`
+    const e = (await makeup.loadPractice(selfId))!
+    expect(await makeup.regularChildrenFor(e)).toEqual([])
+
+    as('parentA')
+    const before = await balance(ids.taro)
+    const r = await att.joinExtra(selfId, ids.taro)
+    expect(r.usedCredit).toBe(false)
+    expect(await balance(ids.taro)).toBe(before)
+    // 休みの連絡は参加の取り消しになり、振替はたまらない
+    await events.reportAbsence({ eventId: selfId, childId: ids.taro, kind: 'absent' })
+    expect(await balance(ids.taro)).toBe(before)
+    expect((await db`select 1 from practice_extras where event_id = ${selfId}`).length).toBe(0)
+
+    // 終わったあとも「来なかった」でたまらない
+    await makeup.settleNoShows(new Date(Date.parse(d + 'T23:00:00+09:00')))
+    expect((await db`select 1 from makeup_credits where event_id = ${selfId}`).length).toBe(0)
+  })
+})

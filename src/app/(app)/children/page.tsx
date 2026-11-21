@@ -7,7 +7,7 @@ import { Page, PageHeader } from '@/components/ui'
 import { ActionButton } from '@/components/client'
 import { InitialCredits, NewChildForm, WeekdayPicker } from '@/components/enroll'
 import { creditBalances } from '@/lib/makeup'
-import { practiceSlots } from '@/lib/schedule'
+import { practiceSlots, selectableSlots } from '@/lib/schedule'
 import { enrollState } from '@/lib/enroll'
 import { ChildAccountInvite, ChildPasswordReset, FamilyInvite } from '@/components/family-invites'
 
@@ -30,7 +30,7 @@ export default async function ChildrenPage() {
     : []
   const ids = kids.map((k) => k.id)
   const [balances, slots, enroll] = await Promise.all([creditBalances(ids), practiceSlots(), enrollState(user.id)])
-  const slotList = slots.map((sl) => ({ weekday: sl.weekday, label: `${sl.start_time}〜` }))
+  const slotList = selectableSlots(slots).map((sl) => ({ weekday: sl.weekday, label: `${sl.start_time}〜` }))
   const [family, accounts] = ids.length
     ? await Promise.all([
         sql<{ child_id: string; profile_id: string; name: string; via: string }[]>`

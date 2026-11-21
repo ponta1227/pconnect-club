@@ -13,6 +13,8 @@ export type AbsenceKid = {
   arrived: string | null
   /** 参加曜日の練習か（false なら「振替で参加」などのボタンを出す） */
   regular: boolean
+  /** 自主練（都度「参加する」。振替は使わない） */
+  self?: boolean
   plan: 'none' | 'weekly1' | 'weekly2plus'
   /** 参加曜日以外で参加予定 */
   extra: { uses_credit: boolean } | null
@@ -94,9 +96,11 @@ export function AbsenceRows({ eventId, eventLabel, kids, tone = 'plain', ended =
                   </>
                 ) : k.extra ? (
                   <>
-                    {chip('ok', k.extra.uses_credit ? '振替で参加' : '参加する')}
+                    {chip('ok', k.extra.uses_credit ? '振替で参加' : '参加')}
                     {!ended && button('取り消す', () => run(() => leaveExtra(eventId, k.id)), { aria: `${k.full_name} の参加を取り消す` })}
                   </>
+                ) : k.self ? (
+                  ended ? chip('muted', '自主練') : button('参加する', () => run(() => joinExtra(eventId, k.id)), { aria: `${k.full_name} この自主練に参加する`, strong: true })
                 ) : k.plan === 'none' ? (
                   <a href="/children" className={band ? 'text-sm underline' : 'text-sm text-brand underline'}>参加曜日を設定する</a>
                 ) : ended ? (
@@ -111,7 +115,7 @@ export function AbsenceRows({ eventId, eventLabel, kids, tone = 'plain', ended =
                   button('参加する', () => run(() => joinExtra(eventId, k.id)), { aria: `${k.full_name} この練習に参加する`, strong: true })
                 )}
               </div>
-              {k.plan !== 'none' && (k.plan === 'weekly1' || k.balance !== 0) && (
+              {!k.self && k.plan !== 'none' && (k.plan === 'weekly1' || k.balance !== 0) && (
                 <p className={`text-right text-xs ${band ? 'opacity-80' : 'text-muted'}`}>
                   振替の残り <span className="num text-sm">{k.balance}</span>回
                   {!going && k.plan === 'weekly1' && k.balance > 0 && '（使うと1回へります）'}

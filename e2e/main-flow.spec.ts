@@ -120,7 +120,7 @@ test.describe.serial('主要フロー', () => {
     await expect(parent.getByText('このお子さんはすでに登録しています')).toBeVisible()
     // 参加曜日：太郎はきょうの曜日だけ（週1日）、花子はきょう＋もう1日（週2日以上）
     const today = DOW[todayDow()]
-    const other = DOW[(todayDow() + 2) % 7]
+    const other = DOW[(todayDow() + 2) % 7 === 5 ? (todayDow() + 3) % 7 : (todayDow() + 2) % 7] // 金曜日は参加曜日にできない
     const taroCard = parent.locator('section').filter({ hasText: '山田太郎' })
     await taroCard.getByRole('button', { name: new RegExp(`^${today}`) }).click()
     await taroCard.getByRole('button', { name: 'この曜日で決める' }).click()
@@ -292,6 +292,17 @@ test.describe.serial('主要フロー', () => {
     await parent.goto(otherPractice)
     await parent.getByRole('button', { name: '山田太郎 の参加を取り消す' }).click()
     await expect(parent.getByText(/振替の残り\s*2回/)).toBeVisible()
+
+    // 管理者が自主練に切り替えると、だれでも振替なしで「参加する」を押せる
+    await admin.goto(`/admin/schedule?ym=${addDaysJst(32).slice(0, 7)}`)
+    await admin.getByRole('button', { name: new RegExp(`日\\(${otherDow}\\) \\d\\d:\\d\\dから`) }).first().click()
+    await admin.getByRole('button', { name: '自主練に切り替える' }).click()
+    await expect(admin.getByRole('button', { name: new RegExp(`日\\(${otherDow}\\) 自主練`) }).first()).toBeVisible()
+    await parent.goto(otherPractice)
+    await expect(parent.getByRole('heading', { name: '自主練に参加' })).toBeVisible()
+    await parent.getByRole('button', { name: '山田太郎 この自主練に参加する' }).click()
+    await expect(parent.locator('li').filter({ hasText: '山田太郎' }).getByText('参加', { exact: true })).toBeVisible()
+    await expect(parent.getByText(/振替の残り/)).toHaveCount(0)
   })
   test('子どもアカウント：保護者が発行 → 管理者が承認 → 機能制限', async ({ browser }) => {
     await parent.goto('/children')

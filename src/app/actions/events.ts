@@ -421,11 +421,11 @@ export async function reportAbsence(input: z.input<typeof AbsenceForm>) {
   const user = await requireUser()
   const v = AbsenceForm.parse(input)
   if (!(await canActForChild(user, v.childId))) throw new Error('この子どもの連絡はできません')
-  const [e] = await sql<{ title: string; starts_at: Date; uses_arrival: boolean }[]>`
-    select e.title, e.starts_at, t.uses_arrival from events e join event_types t on t.id = e.type_id where e.id = ${v.eventId}`
+  const [e] = await sql<{ title: string; starts_at: Date; uses_arrival: boolean; self_practice: boolean }[]>`
+    select e.title, e.starts_at, t.uses_arrival, e.self_practice from events e join event_types t on t.id = e.type_id where e.id = ${v.eventId}`
   if (!e?.uses_arrival) throw new Error('この予定では連絡できません')
   const [child] = await sql<{ weekdays: number[] }[]>`select weekdays from children where id = ${v.childId}`
-  const regular = !!child && isRegularDay(child.weekdays, e.starts_at)
+  const regular = !!child && !e.self_practice && isRegularDay(child.weekdays, e.starts_at)
   // 参加曜日以外の日（振替などで参加予定）を休むときは、参加の取り消しとして扱う（使った振替は戻る）
   if (!regular && v.kind === 'absent') {
     await sql.begin(async (tx) => {

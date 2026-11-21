@@ -55,7 +55,7 @@ export async function fillMonth(ym: string): Promise<{ created: number }> {
     ).map((r) => jstDateStr(r.starts_at)),
   )
   const today = jstDateStr(new Date())
-  const rows: { type_id: string; title: string; starts_at: Date; ends_at: Date; venue_id: string | null; created_by: string }[] = []
+  const rows: { type_id: string; title: string; starts_at: Date; ends_at: Date; venue_id: string | null; created_by: string; self_practice: boolean }[] = []
   for (let d = 1; d <= daysInMonth(year, month); d++) {
     const date = `${ym}-${String(d).padStart(2, '0')}`
     if (date < today || existing.has(date)) continue
@@ -63,7 +63,8 @@ export async function fillMonth(ym: string): Promise<{ created: number }> {
     if (!slot) continue
     rows.push({
       type_id: type.id,
-      title: type.name,
+      title: slot.mode === 'self' ? '自主練' : type.name,
+      self_practice: slot.mode === 'self',
       starts_at: fromJst(date, slot.start_time),
       ends_at: fromJst(date, slot.end_time),
       venue_id: slot.venue_id,
@@ -80,10 +81,12 @@ const PracticeInput = z.object({
   end: timeStr,
   venueId: uuid.nullable(),
   notify: z.boolean(),
+  /** 自主練（場所だけあり、都度参加・振替なし） */
+  selfPractice: z.boolean().optional().default(false),
 })
 
 /** 1日だけ練習を入れる */
-export async function addPractice(input: { date: string; start: string; end: string; venueId: string | null; notify: boolean }) {
+export async function addPractice(input: { date: string; start: string; end: string; venueId: string | null; notify: boolean; selfPractice?: boolean }) {
   const user = await admin()
   const date = dateStr.parse(input.date)
   const v = PracticeInput.parse(input)
@@ -91,10 +94,11 @@ export async function addPractice(input: { date: string; start: string; end: str
   const type = await practiceType()
   if (!type) throw new Error('練習の種別（到着登録あり）がありません')
   const startsAt = fromJst(date, v.start)
+  const title = v.selfPractice ? '自主練' : type.name
   const [e] = await sql<{ id: string }[]>`
-    insert into events (type_id, title, starts_at, ends_at, venue_id, created_by)
-    values (${type.id}, ${type.name}, ${startsAt}, ${fromJst(date, v.end)}, ${v.venueId}, ${user.id}) returning id`
-  if (v.notify) await tell(e.id, startsAt, '練習が追加されました', `${fmtDate(startsAt)} ${v.start}–${v.end}`)
+    insert into events (type_id, title, starts_at, ends_at, venue_id, created_by, self_practice)
+    values (${type.id}, ${title}, ${startsAt}, ${fromJst(date, v.end)}, ${v.venueId}, ${user.id}, ${v.selfPractice}) returning id`
+  if (v.notify) await tell(e.id, startsAt, `${title}が追加されました`, `${fmtDate(startsAt)} ${v.start}–${v.end}`)
   refresh()
 }
 
@@ -114,6 +118,24 @@ export async function updatePractice(input: { eventId: string; start: string; en
     const [venue] = v.venueId ? await sql<{ name: string }[]>`select name from venues where id = ${v.venueId}` : []
     await tell(e.id, startsAt, '練習の時間・会場が変わりました', `${fmtDate(startsAt)} ${v.start}–${v.end}${venue ? ` ${venue.name}` : ''}`)
   }
+  refresh()
+}
+
+/**
+ * 自主練に切り替える／通常の練習に戻す。
+ * 自主練にすると、だれの参加曜日でもなくなるので、この日にたまった振替と、振替で参加予定だった分は元に戻す。
+ */
+export async function setSelfPractice(eventId: string, on: boolean) {
+  await admin()
+  const e = await loadPractice(eventId)
+  const type = await practiceType()
+  await sql.begin(async (tx) => {
+    await tx`update events set self_practice = ${on}, title = ${on ? '自主練' : (type?.name ?? '練習')}, updated_at = now() where id = ${e.id}`
+    if (on) {
+      await tx`delete from makeup_credits where event_id = ${e.id}`
+      await tx`update practice_extras set uses_credit = false where event_id = ${e.id}`
+    }
+  })
   refresh()
 }
 
@@ -148,14 +170,17 @@ export async function removePractice(eventId: string) {
 /** 「いつもの練習」（曜日ごとの会場・時間）を保存する */
 export async function saveSlots(fd: FormData) {
   await admin()
-  const rows: { weekday: number; venue_id: string | null; start_time: string; end_time: string }[] = []
+  const rows: { weekday: number; venue_id: string | null; start_time: string; end_time: string; mode: 'regular' | 'dropin' | 'self' }[] = []
   for (let d = 0; d <= 6; d++) {
     if (fd.get(`on_${d}`) !== 'on') continue
     const start = timeStr.safeParse(fd.get(`start_${d}`))
     const end = timeStr.safeParse(fd.get(`end_${d}`))
     const venue = uuid.safeParse(fd.get(`venue_${d}`))
     if (!start.success || !end.success || end.data <= start.data) continue
-    rows.push({ weekday: d, venue_id: venue.success ? venue.data : null, start_time: start.data, end_time: end.data })
+    const m = String(fd.get(`mode_${d}`) ?? 'regular')
+    // 金曜日は参加曜日にしない（都度参加）
+    const mode = m === 'self' ? 'self' : m === 'dropin' || d === 5 ? 'dropin' : 'regular'
+    rows.push({ weekday: d, venue_id: venue.success ? venue.data : null, start_time: start.data, end_time: end.data, mode })
   }
   await sql.begin(async (tx) => {
     await tx`delete from practice_slots`

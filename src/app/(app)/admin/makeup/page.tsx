@@ -1,7 +1,7 @@
 import { requireAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { creditBalances } from '@/lib/makeup'
-import { practiceSlots } from '@/lib/schedule'
+import { practiceSlots, selectableSlots } from '@/lib/schedule'
 import { fmtDate } from '@/lib/time'
 import { Empty, Page, PageHeader } from '@/components/ui'
 import { MakeupAdminRow } from '@/components/enroll'
@@ -33,7 +33,7 @@ export default async function MakeupPage({ searchParams }: PageProps<'/admin/mak
         where m.child_id = any(${shown.map((k) => k.id)}::uuid[]) and m.delta <> 0
         order by m.created_at desc`
     : []
-  const slotList = slots.map((s) => ({ weekday: s.weekday, label: `${s.start_time}〜` }))
+  const slotList = selectableSlots(slots).map((s) => ({ weekday: s.weekday, label: `${s.start_time}〜` }))
   const unset = kids.filter((k) => k.weekdays.length === 0).length
 
   return (

@@ -15,6 +15,7 @@ import { Logo } from '@/components/logo'
 
 type Practice = {
   id: string
+  self_practice: boolean
   starts_at: Date
   ends_at: Date | null
   status: 'active' | 'cancelled'
@@ -39,7 +40,7 @@ export default async function HomePage() {
     getTodos(),
     // 帯に出す練習：まだ終わっていない、いちばん近い練習（中止も知らせる）
     sql<Practice[]>`
-      select e.id, e.starts_at, e.ends_at, e.status, coalesce(v.name, e.venue_text, '') as venue, v.address as venue_address
+      select e.id, e.starts_at, e.ends_at, e.status, e.self_practice, coalesce(v.name, e.venue_text, '') as venue, v.address as venue_address
       from events e join event_types t on t.id = e.type_id left join venues v on v.id = e.venue_id
       where t.uses_arrival and e.starts_at >= ${dayStart}
         and coalesce(e.ends_at, e.starts_at + interval '2 hours') > now()
