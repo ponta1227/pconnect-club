@@ -9,6 +9,7 @@ import { jstParts } from './time'
  * - 参加曜日の練習を休むと、振替が1回たまる（欠席連絡・連絡なしで来なかった・クラブ都合の休み）。遅刻・早退ではたまらない。
  * - 参加曜日が1日の人は、ほかの曜日に来るとき振替を1回使う。2日以上の人は使わずに「参加する」を押すだけ。
  * - 振替に期限はない。残り回数 = makeup_credits.delta の合計。
+ * - たまるのは 2026年12月1日以降の練習から（MAKEUP_EARN_FROM）。移行時の申告（initial）はそのまま。
  * - 自主練（events.self_practice）は、だれの参加曜日にもならない。参加は都度「参加する」で、振替は使わない・たまらない。
  * - 金曜日などの都度参加の曜日（practice_slots.mode = 'dropin'）は、参加曜日に選べない。
  */
@@ -58,10 +59,14 @@ export async function regularChildrenFor(e: Practice): Promise<string[]> {
 }
 
 /** 振替を1回ためる（同じ練習で二重にはたまらない） */
+/** 振替がたまり始める日。これより前の練習の欠席・無断・クラブ都合の休みではたまらない（2026年11月までは数えない） */
+export const MAKEUP_EARN_FROM = new Date('2026-12-01T00:00:00+09:00')
+
 export async function earnCredit(childId: string, eventId: string, reason: 'absent' | 'no_show' | 'club_cancel', by: string | null = null) {
   await sql`
     insert into makeup_credits (child_id, event_id, delta, reason, created_by)
-    values (${childId}, ${eventId}, 1, ${reason}, ${by})
+    select ${childId}, e.id, 1, ${reason}, ${by} from events e
+    where e.id = ${eventId} and e.starts_at >= ${MAKEUP_EARN_FROM}::timestamptz
     on conflict (child_id, event_id) where delta > 0 and event_id is not null do nothing`
 }
 

@@ -33,7 +33,7 @@
 
 ## 参加曜日と振替（v1.4）
 - 子どもごとに `children.weekdays`（参加曜日）。その曜日の練習は何もしなくても参加。仕組みは `src/lib/makeup.ts` の冒頭コメントを参照。
-- 振替の残り = `makeup_credits.delta` の合計（期限なし）。たまる: 参加曜日の欠席連絡／連絡なしで来なかった（毎朝の定期処理 `settleNoShows`）／クラブ都合の休み。遅刻・早退ではたまらない。到着が記録されると、その練習でたまった分は取り消す。
+- 振替の残り = `makeup_credits.delta` の合計（期限なし）。**たまるのは2026年12月1日以降の練習から**（`MAKEUP_EARN_FROM`、`earnCredit` で判定。移行時の申告 initial は別）。練習を削除するとDBのトリガーでその練習の振替（たまった分・使った分）も消える。たまる: 参加曜日の欠席連絡／連絡なしで来なかった（毎朝の定期処理 `settleNoShows`）／クラブ都合の休み。遅刻・早退ではたまらない。到着が記録されると、その練習でたまった分は取り消す。
 - 参加曜日以外の練習への参加は `practice_extras`。週1日の子は振替を1回使う（`joinExtra`）、週2日以上は使わない。
 - 予定の中止・休み（`cancelEvent` / `setPracticeOff`）は `onPracticeCancelled`、戻すときは `onPracticeRestored` を必ず呼ぶ。
 - いつもの練習の曜日ごとに `practice_slots.mode`（regular=参加曜日に選べる／dropin=都度参加・金曜日は必ずこれ／self=自主練）。参加曜日の選択肢は `selectableSlots()`、`setWeekdays` は金曜と regular 以外を拒否。

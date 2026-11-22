@@ -44,9 +44,11 @@ async function child(name: string, weekdays: number[]) {
   const [c] = await db<{ id: string }[]>`insert into children (full_name, kana, grade, weekdays) values (${name}, ${name}, 3, ${weekdays}::int[]) returning id`
   return c.id
 }
+/** テストの基準日。振替は2026年12月1日以降の練習からたまるので、それより前なら12月1日にする */
+const BASE = Math.max(Date.now(), Date.parse('2026-12-01T00:00:00+09:00'))
 /** 日本時間の yyyy-mm-dd（n日後）と曜日 */
 function jstDay(n: number) {
-  const d = new Date(Date.now() + 9 * 3600e3 + n * 86400e3)
+  const d = new Date(BASE + 9 * 3600e3 + n * 86400e3)
   return { date: d.toISOString().slice(0, 10), dow: d.getUTCDay() }
 }
 
@@ -116,7 +118,7 @@ describe('振替がたまる', () => {
   })
 
   it('練習のあと、到着も欠席連絡もない参加曜日の子にたまる。あとで到着を登録すると消える', async () => {
-    const later = new Date(Date.now() + 3 * 86400e3)
+    const later = new Date(BASE + 3 * 86400e3)
     expect(await makeup.settleNoShows(later)).toBe(3)
     // あした: 太郎・花子 ／ あさって: 花子 の3件
     expect(await balance(ids.taro)).toBe(1)
@@ -211,7 +213,7 @@ describe('金曜日と自主練', () => {
   it('自主練はだれの参加曜日にもならず、参加しても振替は使わない。休んでも・来なくてもたまらない', async () => {
     const [type] = await db<{ id: string }[]>`select id from event_types where uses_arrival order by sort limit 1`
     // 太郎（週1）の参加曜日と同じ曜日の自主練
-    const d = new Date(Date.now() + 9 * 3600e3 + 8 * 86400e3).toISOString().slice(0, 10)
+    const d = new Date(BASE + 9 * 3600e3 + 8 * 86400e3).toISOString().slice(0, 10)
     const [{ id: selfId }] = await db<{ id: string }[]>`
       insert into events (type_id, title, starts_at, ends_at, self_practice)
       values (${type.id}, '自主練', ${d + 'T18:00:00+09:00'}::timestamptz, ${d + 'T21:00:00+09:00'}::timestamptz, true) returning id`
@@ -231,5 +233,33 @@ describe('金曜日と自主練', () => {
     // 終わったあとも「来なかった」でたまらない
     await makeup.settleNoShows(new Date(Date.parse(d + 'T23:00:00+09:00')))
     expect((await db`select 1 from makeup_credits where event_id = ${selfId}`).length).toBe(0)
+  })
+})
+
+describe('振替がたまり始める日', () => {
+  it('2026年11月までの練習は、欠席しても・来なくても振替がたまらない', async () => {
+    const [type] = await db<{ id: string }[]>`select id from event_types where uses_arrival order by sort limit 1`
+    const [{ id: nov }] = await db<{ id: string }[]>`
+      insert into events (type_id, title, starts_at, ends_at)
+      values (${type.id}, '練習', '2026-11-30T18:30:00+09:00', '2026-11-30T20:30:00+09:00') returning id`
+    await makeup.earnCredit(ids.taro, nov, 'absent')
+    await makeup.earnCredit(ids.hana, nov, 'no_show')
+    await makeup.earnCredit(ids.hana, nov, 'club_cancel')
+    expect((await db`select 1 from makeup_credits where event_id = ${nov}`).length).toBe(0)
+  })
+})
+
+describe('予定の削除', () => {
+  it('練習を削除すると、その練習でたまった振替も使った振替も消える', async () => {
+    const [type] = await db<{ id: string }[]>`select id from event_types where uses_arrival order by sort limit 1`
+    const d = new Date(BASE + 9 * 3600e3 + 20 * 86400e3).toISOString().slice(0, 10)
+    const [{ id: ev }] = await db<{ id: string }[]>`
+      insert into events (type_id, title, starts_at, ends_at)
+      values (${type.id}, '練習', ${d + 'T18:30:00+09:00'}::timestamptz, ${d + 'T20:30:00+09:00'}::timestamptz) returning id`
+    await makeup.earnCredit(ids.hana, ev, 'absent')
+    await db`insert into makeup_credits (child_id, event_id, delta, reason) values (${ids.taro}, ${ev}, -1, 'used')`
+    expect((await db`select 1 from makeup_credits where event_id = ${ev}`).length).toBe(2)
+    await db`delete from events where id = ${ev}`
+    expect((await db`select 1 from makeup_credits where event_id is null and reason <> 'initial' and reason <> 'admin'`).length).toBe(0)
   })
 })

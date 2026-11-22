@@ -238,11 +238,13 @@ test.describe.serial('主要フロー', () => {
     await admin.goto(practiceUrl)
     await expect(admin.getByText('欠席・遅刻・早退（管理者のみ） 1件')).toBeVisible()
     await expect(admin.getByText('発熱のため')).toBeVisible()
-    // 参加曜日の欠席なので、花子に振替が1回たまり、参加予定から外れる
+    // 参加曜日の欠席なので、参加予定から外れ、花子に振替が1回たまる（振替は2026年12月の練習から数える）
     await expect(admin.getByRole('heading', { name: '参加予定 1人（管理者のみ）' })).toBeVisible()
-    await parent.goto('/children')
-    const hana = parent.locator('section').filter({ hasText: '山田花子' }).filter({ hasText: '振替の残り' })
-    await expect(hana.getByText(/振替の残り:\s*1回/)).toBeVisible()
+    if (todayJst() >= '2026-12-01') {
+      await parent.goto('/children')
+      const hana = parent.locator('section').filter({ hasText: '山田花子' }).filter({ hasText: '振替の残り' })
+      await expect(hana.getByText(/振替の残り:\s*1回/)).toBeVisible()
+    }
 
     // 別の保護者には見えない
     const { page: other } = await newUser(browser)
