@@ -226,3 +226,56 @@ describe('全体チャット', () => {
     await expect(chat.deleteRoom(room)).rejects.toThrow()
   })
 })
+
+describe('BANDから移行する人の名簿', () => {
+  const list = ['山﨑琥珀', '入野　昊', '髙木　優月', '湊 玲皇', '王瑞豪', '渡邉　晴香', '齋藤　暖斗', '持田凌太朗']
+
+  it('苗字が合えば通る（表記ゆれ・スペースの有無を吸収）', async () => {
+    const { surnameMatches } = await import('@/lib/migration-roster')
+    for (const ok of ['山崎 次郎', '山﨑二郎', '入野 花', '高木 一', '湊 琉碧', '湊琉碧', '渡辺 夏', '斉藤 二', '持田 陽飛', '王 小明'])
+      expect([ok, surnameMatches(ok, list)]).toEqual([ok, true])
+    for (const ng of ['佐藤 花子', '山田太郎', '湊谷 一郎', '高橋 優'])
+      expect([ng, surnameMatches(ng, list)]).toEqual([ng, false])
+  })
+
+  it('移行用の招待で入った保護者は、名簿にない苗字のお子さんを登録できない（新規入会の人は関係ない）', async () => {
+    const enroll = await import('@/app/actions/enroll')
+    await db`insert into migration_roster (name) select unnest(${list}::text[])`
+    const [mover] = await db<{ id: string }[]>`
+      insert into profiles (display_name, join_route, terms_agreed_at, onboarded_at, guide_read_version)
+      values ('移行母', 'existing', now(), now(), 999) returning id`
+    tokens.mover = (await auth.createSession(mover.id, false)).token
+    as('mover')
+    const fd = (name: string) => {
+      const f = new FormData()
+      f.set('full_name', name)
+      f.set('kana', 'てすと')
+      f.set('grade', '3')
+      return f
+    }
+    expect((await enroll.registerNewChild(fd('佐藤 花子'))).error).toMatch(/お問い合わせください/)
+    expect(await enroll.registerNewChild(fd('山崎 次郎'))).not.toHaveProperty('error')
+
+    // 新規入会の人は確認しない
+    as('parentB')
+    await db`update profiles set join_route = 'new' where id = ${ids.parentB}`
+    expect(await enroll.registerNewChild(fd('佐藤 花子'))).not.toHaveProperty('error')
+
+    // 管理者だけが名簿を入れ替えられる
+    const rf = new FormData()
+    rf.set('names', '佐藤 太郎')
+    as('parentA')
+    await expect(enroll.saveMigrationRoster(rf)).rejects.toThrow(/権限|管理者|Forbidden/i)
+    as('admin')
+    await expect(enroll.saveMigrationRoster(rf)).rejects.toThrow(/REDIRECT/)
+    expect((await db`select name from migration_roster`).map((r) => r.name)).toEqual(['佐藤 太郎'])
+  })
+
+  it('会費ペイのCSV（Shift_JIS）から氏名を取り出せる', async () => {
+    const { namesFromPaymentCsv } = await import('@/lib/migration-roster')
+    const iconv = await import('node:child_process')
+    const csv = '"請求番号","会員番号","氏名","コース"\r\n"1","10","山田 太郎","ジュニア教室"\r\n"2","11","鈴木花子","ジュニア教室"\r\n'
+    const sjis = iconv.execFileSync('iconv', ['-f', 'UTF-8', '-t', 'CP932'], { input: csv })
+    expect(namesFromPaymentCsv(sjis.buffer.slice(sjis.byteOffset, sjis.byteOffset + sjis.byteLength) as ArrayBuffer)).toEqual(['山田 太郎', '鈴木花子'])
+  })
+})

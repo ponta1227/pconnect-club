@@ -40,6 +40,7 @@
 - 自主練は `events.self_practice`（タイトル「自主練」）。だれの参加曜日にもならず、都度 `joinExtra` で参加・振替は使わない・欠席や無断でもたまらない。プランナーで「自主練」を選んで入れる／「自主練に切り替える」（`setSelfPractice`、切り替え時にその日の振替の動きは元に戻す）。
 - お子さんは保護者が名前・よみがな・学年を入力して登録（`registerNewChild`）。名簿に同じ名前の子が1人だけいればその子につなぐ。どちらも管理者の承認待ち。承認画面では同じ名前の子がいると注意を出し、却下すると誰ともつながっていない子は消える。2人目の保護者は「家族を招待」で。
 - 入会の流れ: 招待リンクに `audience`（existing=BANDから移行／new=新規）。手順は `src/lib/enroll.ts`。GoogleフォームURL・決済URLは `app_settings`（管理者メニュー → 招待リンク）。
+- BANDから移行する人（`profiles.join_route='existing'`）がお子さんを登録するとき、`migration_roster`（会費ペイの支払い一覧の氏名）と苗字が合わなければ「クラブにお問い合わせください」で止める（`src/lib/migration-roster.ts` の `surnameMatches`、表記ゆれ 髙/高・﨑/崎 などは吸収）。名簿が空なら確認しない。名簿は管理者メニュー → 招待リンク でCSVを入れ直すか手で編集（`saveMigrationRoster`）。新規入会の人は対象外。
 
 ## ログインの方法
 - 保護者: LINE（`/api/auth/line/*`）か、メールアドレス＋6桁の確認コード（`/login/email`、`src/lib/login.ts`・`src/app/actions/login.ts`）。メールは `RESEND_API_KEY` があるときだけ画面に出る（`env.emailLoginEnabled()`）。新しい人は招待リンクが必要。どちらも最後は `resolveLogin()`（`src/lib/invites.ts`）。

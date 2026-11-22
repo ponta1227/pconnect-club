@@ -1,8 +1,9 @@
+import { migrationRoster } from '@/lib/migration-roster'
 import { requireAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { fmtDateTime } from '@/lib/time'
 import { revokeClubInvite } from '@/app/actions/admin'
-import { saveEnrollSettings } from '@/app/actions/enroll'
+import { saveMigrationRoster, saveEnrollSettings } from '@/app/actions/enroll'
 import { Page, PageHeader } from '@/components/ui'
 import { ActionButton, SubmitButton } from '@/components/client'
 import { InviteGenerator } from '@/components/invite-generator'
@@ -12,6 +13,7 @@ export const metadata = { title: '招待リンク' }
 export default async function InvitesPage({ searchParams }: PageProps<'/admin/invites'>) {
   await requireAdmin()
   const sp = await searchParams
+  const roster = await migrationRoster()
   const [current, [settings]] = await Promise.all([
     sql<{ audience: 'existing' | 'new'; created_at: Date; by: string | null }[]>`
       select distinct on (i.audience) i.audience, i.created_at, p.display_name as by
@@ -72,6 +74,30 @@ export default async function InvitesPage({ searchParams }: PageProps<'/admin/in
             {sp.saved === '1' && <p className="text-sm text-ok">保存しました。</p>}
             <SubmitButton pendingText="保存中…">保存する</SubmitButton>
           </form>
+        </section>
+
+        <section className="card space-y-3 p-4">
+          <h2 className="font-bold">BANDから移行する人の確認（会費の支払い一覧）</h2>
+          <p className="text-sm text-muted">
+            移行用の招待リンクで入った人は、ここにある名前と<b>苗字が合うお子さん</b>しか登録できません（合わないときは「クラブにお問い合わせください」と出ます）。空にすると確認しません。いま <span className="num font-bold text-text">{roster.length}</span> 人。
+          </p>
+          {typeof sp.roster === 'string' && /^\d+$/.test(sp.roster) && <p className="text-sm text-ok">{sp.roster}人分を保存しました。</p>}
+          {sp.roster === 'nocol' && <p className="text-sm text-danger">CSVに「氏名」の列が見つかりませんでした。</p>}
+          {sp.roster === 'toobig' && <p className="text-sm text-danger">ファイルが大きすぎます。</p>}
+          <form action={saveMigrationRoster} className="space-y-3">
+            <label className="block">
+              <span className="label">会費ペイのCSVで入れ替える</span>
+              <input name="csv" type="file" accept=".csv,text/csv" className="block w-full text-sm" />
+            </label>
+            <SubmitButton pendingText="保存中…">CSVで入れ替える</SubmitButton>
+          </form>
+          <details>
+            <summary className="cursor-pointer text-sm font-bold">名前を直接直す（1行に1人）</summary>
+            <form action={saveMigrationRoster} className="mt-2 space-y-2">
+              <textarea name="names" defaultValue={roster.join('\n')} className="input min-h-48 text-sm" aria-label="移行の名簿" />
+              <SubmitButton pendingText="保存中…">この名前で保存する</SubmitButton>
+            </form>
+          </details>
         </section>
       </Page>
     </>
