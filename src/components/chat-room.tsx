@@ -10,6 +10,7 @@ type Msg = {
   id: string
   sender_id: string | null
   sender_name: string
+  staff_label?: string | null
   sender_avatar: string | null
   body: string
   created_at: string
@@ -189,7 +190,8 @@ export function ChatRoom({
               <div className={`flex items-end gap-2 ${mine ? 'flex-row-reverse' : ''}`}>
                 {!mine && <Avatar name={m.sender_name} url={m.sender_avatar} size={32} />}
                 <div className={`max-w-[78%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
-                  {!mine && <span className="mb-0.5 text-xs text-muted">{m.sender_name}</span>}
+                  {!mine && <span className="mb-0.5 text-xs text-muted">{m.sender_name}{m.staff_label ? `（${m.staff_label}）` : ''}</span>}
+                  {mine && m.staff_label && <span className="mb-0.5 text-xs text-muted">{m.staff_label}</span>}
                   <button
                     type="button"
                     onClick={() => !m.deleted && setMenuFor(menuFor === m.id ? null : m.id)}

@@ -6,12 +6,12 @@ import { env } from './env'
 // ほかの端末でも同じアカウントを使うためのログイン用リンク。1回だけ・30分だけ使える。
 export const LOGIN_LINK_MINUTES = 30
 
-export async function issueLoginLink(profileId: string): Promise<string> {
+export async function issueLoginLink(profileId: string, label: string | null = null): Promise<string> {
   const token = randomToken()
   await sql`delete from login_links where expires_at < now() - interval '1 day'`
   await sql`
-    insert into login_links (token_hash, profile_id, expires_at)
-    values (${sha256(token)}, ${profileId}, now() + make_interval(mins => ${LOGIN_LINK_MINUTES}::int))`
+    insert into login_links (token_hash, profile_id, label, expires_at)
+    values (${sha256(token)}, ${profileId}, ${label}, now() + make_interval(mins => ${LOGIN_LINK_MINUTES}::int))`
   return `${env.appUrl()}/login/link/${token}`
 }
 
@@ -24,12 +24,12 @@ export async function peekLoginLink(token: string): Promise<{ name: string } | n
   return row ?? null
 }
 
-/** リンクを使う（1回だけ）。使えたらそのアカウントのIDを返す */
-export async function consumeLoginLink(token: string): Promise<string | null> {
-  const [row] = await sql<{ profile_id: string }[]>`
+/** リンクを使う（1回だけ）。使えたらそのアカウントのIDと、端末を使う人の名前を返す */
+export async function consumeLoginLink(token: string): Promise<{ profileId: string; label: string | null } | null> {
+  const [row] = await sql<{ profile_id: string; label: string | null }[]>`
     update login_links l set used_at = now() from profiles p
     where l.token_hash = ${sha256(token)} and l.used_at is null and l.expires_at > now()
       and p.id = l.profile_id and p.deleted_at is null and p.account_kind = 'adult'
-    returning l.profile_id`
-  return row?.profile_id ?? null
+    returning l.profile_id, l.label`
+  return row ? { profileId: row.profile_id, label: row.label } : null
 }

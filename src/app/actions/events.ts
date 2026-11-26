@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
-import { assertAdmin, requireUser } from '@/lib/auth'
+import { assertAdmin, requireUser, staffLabel } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { adminIds, adultsForClasses, canActForChild, childAccountsForClasses, eventTargetChildIds, guardiansOf } from '@/lib/access'
 import { attachTo, detachMissing } from '@/lib/files'
@@ -166,8 +166,8 @@ export async function saveEvent(_prev: FormState, fd: FormData): Promise<FormSta
     if (type.uses_rsvp && v.announce) {
       const postId = await sql.begin(async (tx) => {
         const [p] = await tx<{ id: string }[]>`
-          insert into posts (title, body, event_id, published_at, created_by)
-          values (${v.title}, ${v.note}, ${targetId}, now(), ${user.id}) returning id`
+          insert into posts (title, body, event_id, published_at, created_by, staff_label)
+          values (${v.title}, ${v.note}, ${targetId}, now(), ${user.id}, ${await staffLabel()}) returning id`
         for (const c of v.class_ids) await tx`insert into post_classes (post_id, class_id) values (${p.id}, ${c})`
         // 自分で出したお知らせは既読にしておく（未読の人数に数えない）
         await tx`insert into post_reads (post_id, profile_id) values (${p.id}, ${user.id})`

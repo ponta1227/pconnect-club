@@ -13,8 +13,8 @@ export default async function BoardPage({ searchParams }: PageProps<'/board'>) {
   const user = await requireUser()
   const sp = await searchParams
   const page = Math.max(0, Number(sp.page) || 0)
-  const posts = await sql<{ id: string; title: string; body: string; pinned: boolean; urgent: boolean; published_at: Date | null; created_at: Date; author: string | null; comments: number; reads: number; read: boolean; has_poll: boolean; photos: number; event_id: string | null; class_names: string[] }[]>`
-    select p.id, p.title, p.body, p.pinned, p.urgent, p.published_at, p.created_at, p.event_id, pr.display_name as author,
+  const posts = await sql<{ id: string; title: string; body: string; pinned: boolean; urgent: boolean; published_at: Date | null; created_at: Date; author: string | null; staff_label: string | null; comments: number; reads: number; read: boolean; has_poll: boolean; photos: number; event_id: string | null; class_names: string[] }[]>`
+    select p.id, p.title, p.body, p.pinned, p.urgent, p.published_at, p.created_at, p.event_id, pr.display_name as author, case when ${user.isAdmin}::boolean then p.staff_label end as staff_label,
       (select count(*)::int from post_comments c where c.post_id = p.id and c.deleted_at is null) as comments,
       (select count(*)::int from post_reads r where r.post_id = p.id) as reads,
       exists (select 1 from post_reads r where r.post_id = p.id and r.profile_id = ${user.id}) as read,
@@ -49,7 +49,7 @@ export default async function BoardPage({ searchParams }: PageProps<'/board'>) {
             <p className={`text-[1.02rem] ${p.read ? 'font-semibold' : 'font-bold'}`}>{p.title}</p>
             {p.body && <p className="mt-1 line-clamp-2 text-sm text-muted">{p.body}</p>}
             <div className="mt-2 flex items-center gap-3 text-xs text-muted">
-              <span>{p.author ?? '—'}</span>
+              <span>{p.author ?? '—'}{p.staff_label ? `（${p.staff_label}）` : ''}</span>
               <span>{fmtRelative(p.published_at ?? p.created_at)}</span>
               {p.photos > 0 && <span className="inline-flex items-center gap-0.5"><IconPhoto className="h-4 w-4" />{p.photos}</span>}
               {p.has_poll && <span className="inline-flex items-center gap-0.5"><IconPoll className="h-4 w-4" />投票</span>}

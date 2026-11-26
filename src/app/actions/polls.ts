@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
-import { assertAdmin, requireUser, type CurrentUser } from '@/lib/auth'
+import { assertAdmin, requireUser, staffLabel, type CurrentUser } from '@/lib/auth'
 import { insertPoll, type PollInputT } from '@/lib/poll-write'
 import { sql } from '@/lib/db'
 import { isRoomMember } from '@/lib/access'
@@ -103,7 +103,7 @@ export async function createRoomPoll(roomId: string, raw: PollInputT) {
   if (!(await isRoomMember(user.id, roomId))) throw new Error('このルームのメンバーではありません')
   const pollId = await sql.begin(async (tx) => {
     const id = await insertPoll(tx, user, 'room', roomId, raw)
-    await tx`insert into chat_messages (room_id, sender_id, body, poll_id) values (${roomId}, ${user.id}, ${'📊 ' + String(raw.question)}, ${id})`
+    await tx`insert into chat_messages (room_id, sender_id, body, poll_id, staff_label) values (${roomId}, ${user.id}, ${'📊 ' + String(raw.question)}, ${id}, ${await staffLabel()})`
     return id
   })
   const members = (await sql<{ profile_id: string }[]>`select profile_id from chat_members where room_id = ${roomId} and profile_id <> ${user.id}`).map((r) => r.profile_id)

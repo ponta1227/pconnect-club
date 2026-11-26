@@ -48,7 +48,7 @@ export default async function RoomPage({ params, searchParams }: PageProps<'/cha
 
   // 検索
   if (typeof q === 'string') {
-    const results = q.trim() ? await fetchMessages(id, { q, limit: 100 }) : []
+    const results = q.trim() ? await fetchMessages(id, { q, limit: 100, staff: user.isAdmin }) : []
     return (
       <>
         {header}
@@ -61,7 +61,7 @@ export default async function RoomPage({ params, searchParams }: PageProps<'/cha
           <ul className="space-y-2">
             {results.reverse().map((m) => (
               <li key={m.id} className="card p-3 text-sm">
-                <p className="text-xs text-muted">{m.sender_name}・{fmtDateTime(new Date(m.created_at))}</p>
+                <p className="text-xs text-muted">{m.sender_name}{m.staff_label ? `（${m.staff_label}）` : ''}・{fmtDateTime(new Date(m.created_at))}</p>
                 <p className="whitespace-pre-wrap">{m.body}</p>
               </li>
             ))}
@@ -71,7 +71,7 @@ export default async function RoomPage({ params, searchParams }: PageProps<'/cha
     )
   }
 
-  const messages = await fetchMessages(id, { limit: 50 })
+  const messages = await fetchMessages(id, { limit: 50, staff: user.isAdmin })
   await markRoomRead(id, user.id)
   const openPolls = polls.filter((p) => !p.closed)
 

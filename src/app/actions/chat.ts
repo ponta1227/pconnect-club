@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
-import { assertAdmin, requireUser } from '@/lib/auth'
+import { assertAdmin, requireUser, staffLabel } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { isRoomMember } from '@/lib/access'
 import { attachTo } from '@/lib/files'
@@ -32,10 +32,11 @@ export async function sendMessage(raw: z.input<typeof SendInput>) {
   const memberIds = new Set((await sql<{ profile_id: string }[]>`select profile_id from chat_members where room_id = ${v.roomId}`).map((r) => r.profile_id))
   const mentions = v.mentions.filter((m) => memberIds.has(m) && m !== user.id)
 
+  const label = await staffLabel()
   const msgId = await sql.begin(async (tx) => {
     const [m] = await tx<{ id: string }[]>`
-      insert into chat_messages (room_id, sender_id, body, reply_to, mentions)
-      values (${v.roomId}, ${user.id}, ${body}, ${v.replyTo}, ${mentions}::uuid[])
+      insert into chat_messages (room_id, sender_id, body, reply_to, mentions, staff_label)
+      values (${v.roomId}, ${user.id}, ${body}, ${v.replyTo}, ${mentions}::uuid[], ${label})
       returning id`
     await attachTo(tx, user, 'message', m.id, v.attachments)
     await tx`update chat_members set last_read_at = now() where room_id = ${v.roomId} and profile_id = ${user.id}`
@@ -60,7 +61,7 @@ export async function sendMessage(raw: z.input<typeof SendInput>) {
     returning profile_id`
   notifyLater(targets.map((t) => t.profile_id), 'chat', { title: room.name, body: `${user.displayName}: ${preview}`, url })
 
-  const [msg] = await fetchMessages(v.roomId, { after: new Date(Date.now() - 60_000), limit: 100 }).then((list) => list.filter((m) => m.id === msgId))
+  const [msg] = await fetchMessages(v.roomId, { after: new Date(Date.now() - 60_000), limit: 100, staff: user.isAdmin }).then((list) => list.filter((m) => m.id === msgId))
   return msg
 }
 

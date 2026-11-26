@@ -23,8 +23,8 @@ export default async function PostPage({ params }: PageProps<'/board/[id]'>) {
   const user = await requireUser()
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
-  const [post] = await sql<{ id: string; title: string; body: string; pinned: boolean; urgent: boolean; published_at: Date | null; updated_at: Date; author: string | null; author_avatar: string | null; event_id: string | null; class_ids: string[]; class_names: string[] }[]>`
-    select p.id, p.title, p.body, p.pinned, p.urgent, p.published_at, p.updated_at, pr.display_name as author, pr.avatar_url as author_avatar, p.event_id,
+  const [post] = await sql<{ id: string; title: string; body: string; pinned: boolean; urgent: boolean; published_at: Date | null; updated_at: Date; author: string | null; staff_label: string | null; author_avatar: string | null; event_id: string | null; class_ids: string[]; class_names: string[] }[]>`
+    select p.id, p.title, p.body, p.pinned, p.urgent, p.published_at, p.updated_at, pr.display_name as author, case when ${user.isAdmin}::boolean then p.staff_label end as staff_label, pr.avatar_url as author_avatar, p.event_id,
       coalesce((select array_agg(class_id) from post_classes pc where pc.post_id = p.id), '{}') as class_ids,
       coalesce((select array_agg(c.name order by c.sort) from post_classes pc join classes c on c.id = pc.class_id where pc.post_id = p.id), '{}') as class_names
     from posts p left join profiles pr on pr.id = p.created_by where p.id = ${id}`
@@ -37,8 +37,8 @@ export default async function PostPage({ params }: PageProps<'/board/[id]'>) {
 
   const [files, comments, reactions, readers, polls, event, unread] = await Promise.all([
     attachmentsFor('post', [id]),
-    sql<{ id: string; body: string; created_at: Date; profile_id: string | null; name: string | null; avatar: string | null }[]>`
-      select c.id, c.body, c.created_at, c.profile_id, p.display_name as name, p.avatar_url as avatar
+    sql<{ id: string; body: string; created_at: Date; profile_id: string | null; name: string | null; staff_label: string | null; avatar: string | null }[]>`
+      select c.id, c.body, c.created_at, c.profile_id, p.display_name as name, case when ${user.isAdmin}::boolean then c.staff_label end as staff_label, p.avatar_url as avatar
       from post_comments c left join profiles p on p.id = c.profile_id
       where c.post_id = ${id} and c.deleted_at is null order by c.created_at`,
     sql<{ emoji: string; profile_id: string }[]>`select emoji, profile_id from post_reactions where post_id = ${id}`,
@@ -88,7 +88,7 @@ export default async function PostPage({ params }: PageProps<'/board/[id]'>) {
           <h2 className="text-xl font-bold">{post.title}</h2>
           <div className="flex items-center gap-2 text-sm text-muted">
             <Avatar name={post.author ?? '?'} url={post.author_avatar} size={28} />
-            <span>{post.author ?? '—'}</span>
+            <span>{post.author ?? '—'}{post.staff_label ? `（${post.staff_label}）` : ''}</span>
             <span>・{post.published_at ? fmtDateTime(post.published_at) : '下書き'}</span>
           </div>
           {post.body && (
@@ -201,6 +201,7 @@ export default async function PostPage({ params }: PageProps<'/board/[id]'>) {
                 <div className="min-w-0 flex-1 rounded-2xl bg-bg px-3 py-2">
                   <div className="flex items-center gap-2 text-xs text-muted">
                     <b className="text-text">{c.name ?? '退会したメンバー'}</b>
+                    {c.staff_label && <span>（{c.staff_label}）</span>}
                     <span>{fmtRelative(c.created_at)}</span>
                     {(c.profile_id === user.id || user.isAdmin) && <span className="ml-auto"><DeleteCommentButton id={c.id} /></span>}
                   </div>

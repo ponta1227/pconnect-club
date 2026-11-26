@@ -15,12 +15,14 @@ export type ChatMessage = {
   mentions: string[]
   poll_id: string | null
   read_count: number
+  /** 管理者のアカウントを共用しているとき、書いた人の名前（管理者にだけ返す） */
+  staff_label: string | null
   attachments: { id: string; kind: 'photo' | 'pdf'; file_name: string }[]
 }
 
 type Row = Omit<ChatMessage, 'created_at' | 'attachments'> & { created_at: Date }
 
-export async function fetchMessages(roomId: string, opts: { after?: Date | null; before?: Date | null; limit?: number; q?: string | null }) {
+export async function fetchMessages(roomId: string, opts: { after?: Date | null; before?: Date | null; limit?: number; q?: string | null; staff?: boolean }) {
   const limit = Math.min(opts.limit ?? 50, 100)
   const after = opts.after ?? null
   const before = opts.before ?? null
@@ -31,7 +33,7 @@ export async function fetchMessages(roomId: string, opts: { after?: Date | null;
         case when m.deleted_at is null then m.body else '' end as body,
         m.created_at, m.deleted_at is not null as deleted, m.reply_to,
         rp.display_name as reply_name, case when r.deleted_at is null then left(r.body, 60) else '（削除されました）' end as reply_body,
-        m.mentions, m.poll_id,
+        m.mentions, m.poll_id, case when ${!!opts.staff}::boolean then m.staff_label end as staff_label,
         (select count(*)::int from chat_members cm where cm.room_id = m.room_id and cm.profile_id is distinct from m.sender_id and cm.last_read_at >= m.created_at) as read_count
       from chat_messages m
       left join profiles p on p.id = m.sender_id

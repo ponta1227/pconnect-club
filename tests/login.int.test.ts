@@ -306,8 +306,10 @@ describe('ほかの端末でも同じアカウントを使う（ログイン用�
     await expect(account.createLoginLink()).rejects.toThrow()
 
     as('admin')
-    const { url } = await account.createLoginLink()
-    const tok = url.split('/login/link/')[1]
+    expect(await account.createLoginLink('')).toHaveProperty('error') // 管理者は、使う人の名前が必要
+    const made = await account.createLoginLink('田中コーチ')
+    if ('error' in made) throw new Error(made.error)
+    const tok = made.url.split('/login/link/')[1]
     expect(tok.length).toBeGreaterThan(20)
     expect((await db`select 1 from login_links where token_hash = ${tok}`).length).toBe(0) // 生のトークンは保存しない
     expect(await link.peekLoginLink(tok)).toEqual({ name: '管理者' })
@@ -317,6 +319,7 @@ describe('ほかの端末でも同じアカウントを使う（ログイン用�
     as(null)
     await expect(account.loginWithLink(tok)).rejects.toThrow(/REDIRECT:\/$/)
     expect((await db`select 1 from sessions where profile_id = ${ids.admin}`).length).toBe(before + 1)
+    expect((await db`select 1 from sessions where profile_id = ${ids.admin} and label = '田中コーチ'`).length).toBe(1)
     // 2回目は使えない
     await expect(account.loginWithLink(tok)).rejects.toThrow(/error=1/)
     expect(await link.peekLoginLink(tok)).toBeNull()
@@ -324,7 +327,9 @@ describe('ほかの端末でも同じアカウントを使う（ログイン用�
 
     // 期限切れ
     as('admin')
-    const old = (await account.createLoginLink()).url.split('/login/link/')[1]
+    const made2 = await account.createLoginLink('期限切れ')
+    if ('error' in made2) throw new Error(made2.error)
+    const old = made2.url.split('/login/link/')[1]
     await db`update login_links set expires_at = now() - interval '1 minute' where used_at is null`
     expect(await link.consumeLoginLink(old)).toBeNull()
 
@@ -334,6 +339,41 @@ describe('ほかの端末でも同じアカウントを使う（ログイン用�
     expect((await db`select 1 from sessions where profile_id = ${ids.admin}`).length).toBe(1)
     expect((await db`select 1 from sessions where profile_id <> ${ids.admin}`).length).toBe(others)
     expect((await auth.getCurrentUser())?.id).toBe(ids.admin)
+  })
+
+  it('共用している端末で書くと、だれが書いたかが管理者にだけ分かる', async () => {
+    const account = await import('@/app/actions/account')
+    const chat = await import('@/app/actions/chat')
+    const { fetchMessages } = await import('@/lib/chat')
+    const posts = await import('@/app/actions/posts')
+    const [room] = await db<{ id: string }[]>`select id from chat_rooms where is_everyone`
+    tokens.coach = (await auth.createSession(ids.admin, false, '田中コーチ')).token
+    const input = (body: string) => ({ roomId: room.id, body, replyTo: null, mentions: [], attachments: [] })
+
+    as('coach')
+    await chat.sendMessage(input('コーチが書いた'))
+    as('admin')
+    await chat.sendMessage(input('本人が書いた'))
+    // 保護者の端末には名前を付けられず、付いていても記録しない
+    tokens.parentLabeled = (await auth.createSession(ids.parentA, false, 'なりすまし')).token
+    as('parentLabeled')
+    await chat.sendMessage(input('保護者が書いた'))
+    expect(await account.createLoginLink('自分で名乗る')).toHaveProperty('url')
+    expect((await db`select 1 from login_links where label is not null and profile_id = ${ids.parentA}`).length).toBe(0)
+
+    const label = (list: { body: string; staff_label: string | null }[], body: string) => list.find((m) => m.body === body)!.staff_label
+    const forAdmin = await fetchMessages(room.id, { limit: 100, staff: true })
+    expect(label(forAdmin, 'コーチが書いた')).toBe('田中コーチ')
+    expect(label(forAdmin, '本人が書いた')).toBeNull()
+    expect(label(forAdmin, '保護者が書いた')).toBeNull()
+    const forParent = await fetchMessages(room.id, { limit: 100 })
+    expect(forParent.every((m) => m.staff_label === null)).toBe(true)
+
+    // 掲示板のコメントにも控える
+    const [post] = await db<{ id: string }[]>`insert into posts (title, body, published_at, created_by) values ('お知らせ', '', now(), ${ids.admin}) returning id`
+    as('coach')
+    await posts.addComment(post.id, 'コーチのコメント')
+    expect((await db<{ staff_label: string | null }[]>`select staff_label from post_comments where post_id = ${post.id}`)[0].staff_label).toBe('田中コーチ')
   })
 })
 

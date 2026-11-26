@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<'/api/chat/[id]/me
   const parse = (v: string | null) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v) : null)
   const after = parse(sp.get('after'))
   const before = parse(sp.get('before'))
-  const messages = await fetchMessages(id, { after, before, limit: before ? 50 : 100 })
+  const messages = await fetchMessages(id, { after, before, limit: before ? 50 : 100, staff: user.isAdmin })
   if (!before && sp.get('visible') === '1') await markRoomRead(id, user.id)
   // 自分のメッセージの既読数を更新するため、直近の自分の発言も返す
   const recentMine = after ? (await fetchMessages(id, { after: new Date(after.getTime() - 10 * 60 * 1000), limit: 100 })).filter((m) => m.sender_id === user.id) : []

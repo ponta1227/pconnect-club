@@ -1,7 +1,7 @@
-import { requireUser } from '@/lib/auth'
+import { requireUser, staffLabel } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { FORCED_KINDS, NOTIFY_KINDS, type NotifyKind } from '@/lib/notify-kinds'
-import { leaveClub, logoutOtherDevices, removeEmail, requestEmailVerification, updateDisplayName } from '@/app/actions/account'
+import { leaveClub, logoutOtherDevices, setDeviceLabel, removeEmail, requestEmailVerification, updateDisplayName } from '@/app/actions/account'
 import { Notice, Page, PageHeader } from '@/components/ui'
 import { ActionButton, SubmitButton } from '@/components/client'
 import { PushToggle } from '@/components/push'
@@ -24,6 +24,7 @@ export default async function SettingsPage({ searchParams }: PageProps<'/setting
   const map = new Map(overrides.map((o) => [o.kind, o]))
   const kinds = (Object.keys(NOTIFY_KINDS) as NotifyKind[]).filter((k) => !FORCED_KINDS.includes(k) && (user.isAdmin || !NOTIFY_KINDS[k].adminOnly))
   const [{ devices }] = await sql<{ devices: number }[]>`select count(*)::int as devices from sessions where profile_id = ${user.id} and expires_at > now()`
+  const deviceLabel = await staffLabel()
   const emailMsg = typeof sp.email === 'string' ? EMAIL_MSG[sp.email] : undefined
 
   return (
@@ -100,8 +101,21 @@ export default async function SettingsPage({ searchParams }: PageProps<'/setting
                 ? 'ほかのコーチの端末や、自分のパソコン・タブレットでも、このアカウントのまま使えます。リンクを作って、その端末で開いてもらってください。'
                 : '自分のパソコンやタブレットでも、このアカウントのまま使えます。リンクを作って、その端末で開いてください。'}
             </p>
-            <LoginLinkMaker />
+            <LoginLinkMaker askName={user.isAdmin} />
             {sp.devices === 'out' && <Notice tone="ok">この端末以外をログアウトしました。</Notice>}
+            {user.isAdmin && (
+              <form action={setDeviceLabel} className="space-y-1 border-t border-line pt-3">
+                <label className="block text-sm font-semibold" htmlFor="device-label">
+                  この端末を使う人の名前
+                </label>
+                <div className="flex gap-2">
+                  <input id="device-label" name="label" className="input flex-1" defaultValue={deviceLabel ?? ''} maxLength={20} placeholder={`空なら ${user.displayName} 本人`} />
+                  <SubmitButton className="btn-secondary">保存</SubmitButton>
+                </div>
+                {sp.devices === 'named' && <Notice tone="ok">保存しました。</Notice>}
+                <p className="text-xs text-muted">ここに名前があると、この端末で書いた掲示板・コメント・チャットに「（名前）」と付きます。見えるのは管理者だけで、保護者には見えません。</p>
+              </form>
+            )}
             <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
               <span className="text-sm">
                 いまログイン中の端末 <span className="num font-bold">{devices}</span>台

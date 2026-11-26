@@ -85,14 +85,27 @@ export function sessionCookieOptions(expires: Date) {
 }
 
 /** セッションを作成する。setCookie=false のときは呼び出し側でレスポンスに Cookie を付ける */
-export async function createSession(profileId: string, setCookie = true) {
+export async function createSession(profileId: string, setCookie = true, label: string | null = null) {
   const token = randomToken()
   const expires = new Date(Date.now() + SESSION_DAYS * 86400000)
-  await sql`insert into sessions (token_hash, profile_id, expires_at) values (${sha256(token)}, ${profileId}, ${expires})`
+  await sql`insert into sessions (token_hash, profile_id, expires_at, label) values (${sha256(token)}, ${profileId}, ${expires}, ${label})`
   await sql`delete from sessions where expires_at < now()`
   if (setCookie) (await cookies()).set(SESSION_COOKIE, token, sessionCookieOptions(expires))
   return { token, expires }
 }
+
+/**
+ * この端末を使っている人の名前（管理者のアカウントをコーチと共用するときの目印）。
+ * 管理者のアカウントのときだけ返す。書き込み時に控え、管理者にだけ見せる。
+ */
+export const staffLabel = cache(async (): Promise<string | null> => {
+  const user = await getCurrentUser()
+  if (!user?.canAdmin) return null
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  if (!token) return null
+  const [row] = await sql<{ label: string | null }[]>`select label from sessions where token_hash = ${sha256(token)}`
+  return row?.label || null
+})
 
 export async function destroySession() {
   const store = await cookies()

@@ -47,6 +47,7 @@
 - 保護者: LINE（`/api/auth/line/*`）か、メールアドレス＋6桁の確認コード（`/login/email`、`src/lib/login.ts`・`src/app/actions/login.ts`）。メールは `RESEND_API_KEY` があるときだけ画面に出る（`env.emailLoginEnabled()`）。新しい人は招待リンクが必要。どちらも最後は `resolveLogin()`（`src/lib/invites.ts`）。
 - 子ども: 保護者が「お子さん・家族の管理」でログインIDとパスワードを決めて作る（`createChildLogin`）。管理者の承認で使える。`/login/kid` で入る。パスワードは保護者が `resetChildPassword` で変える（端末はログアウト）。5回まちがえると15分ロック。無効にするとIDは空く。
 - ほかの端末でも同じアカウントを使う: 設定 →「ほかの端末でも使う」でログイン用リンク（`login_links`、30分・1回だけ、`src/lib/login-link.ts`）を作り、相手の端末で `/login/link/[token]` を開いて「ログインする」を押す（開いただけでは使われない）。コーチは木村さんのアカウントをこの方法で共用する。「ほかの端末をログアウト」（`logoutOtherDevices`）で取り消せる。子どもアカウントは作れない。
+- 共用している端末の目印: `sessions.label`（使う人の名前。管理者がリンクを作るときに必須、設定でも変えられる）。掲示板の投稿・コメント・チャットを書くとき `staffLabel()`（`src/lib/auth.ts`、管理者のアカウントのときだけ返す）を `staff_label` 列に控え、**`user.isAdmin` のときだけ**「（田中コーチ）」と表示する。保護者・子ども・保護者の表示には返さない。新しく書き込みの種類を足すときも同じようにする。
 - E2E ではメールが届かないので `e2e/helpers.ts` の `setEmailCode` でDBのコードを置きかえる。
 
 ## 招待リンクとホーム画面への追加

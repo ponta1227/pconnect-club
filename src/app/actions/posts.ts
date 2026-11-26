@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
-import { assertAdmin, requireUser } from '@/lib/auth'
+import { assertAdmin, requireUser, staffLabel } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { adultsForClasses, allAdultIds } from '@/lib/access'
 import { attachTo, detachMissing } from '@/lib/files'
@@ -72,8 +72,8 @@ export async function savePost(_prev: PostFormState, fd: FormData): Promise<Post
         await detachMissing(tx, 'post', postId, v.attachments.filter((x) => /^[0-9a-f-]{36}$/.test(x)))
       } else {
         const [p] = await tx<{ id: string }[]>`
-          insert into posts (title, body, urgent, pinned, pinned_at, published_at, event_id, created_by)
-          values (${v.title}, ${v.body}, ${v.urgent}, ${v.pinned}, ${v.pinned ? new Date() : null}, ${v.publish ? new Date() : null}, ${v.event_id}, ${user.id})
+          insert into posts (title, body, urgent, pinned, pinned_at, published_at, event_id, created_by, staff_label)
+          values (${v.title}, ${v.body}, ${v.urgent}, ${v.pinned}, ${v.pinned ? new Date() : null}, ${v.publish ? new Date() : null}, ${v.event_id}, ${user.id}, ${await staffLabel()})
           returning id`
         postId = p.id
       }
@@ -141,7 +141,7 @@ export async function addComment(postId: string, body: string) {
   if (!text) throw new Error('コメントを入力してください')
   const [post] = await sql<{ title: string; created_by: string | null }[]>`select title, created_by from posts where id = ${postId} and published_at is not null`
   if (!post) throw new Error('投稿が見つかりません')
-  await sql`insert into post_comments (post_id, profile_id, body) values (${postId}, ${user.id}, ${text})`
+  await sql`insert into post_comments (post_id, profile_id, body, staff_label) values (${postId}, ${user.id}, ${text}, ${await staffLabel()})`
   // 投稿者と、これまでにコメントした人へ（既定はOFF。設定でONにした人だけに届く）
   const others = await sql<{ profile_id: string }[]>`
     select distinct profile_id from post_comments where post_id = ${postId} and profile_id is not null`

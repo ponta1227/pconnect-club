@@ -124,20 +124,35 @@ export async function setMemberPreview(on: boolean) {
 
 // ------------------------------------------------------------ ほかの端末でも同じアカウントを使う
 
-/** ログイン用リンクを作る（1回だけ・30分だけ使える）。子どもアカウントは不可 */
-export async function createLoginLink(): Promise<{ url: string }> {
+/**
+ * ログイン用リンクを作る（1回だけ・30分だけ使える）。子どもアカウントは不可。
+ * 管理者は「使う人の名前」を付ける（その端末で書いたものに、管理者だけが見える目印として残る）
+ */
+export async function createLoginLink(name = ''): Promise<{ url: string } | { error: string }> {
   const user = await requireUser()
   assertAdult(user)
-  return { url: await issueLoginLink(user.id) }
+  const label = user.isAdmin ? name.trim().slice(0, 20) : ''
+  if (user.isAdmin && !label) return { error: '使う人の名前を入れてください（例：田中コーチ）' }
+  return { url: await issueLoginLink(user.id, label || null) }
 }
 
 /** ログイン用リンクを開いた端末でログインする */
 export async function loginWithLink(token: string) {
-  const profileId = await consumeLoginLink(token)
-  if (!profileId) redirect(`/login/link/${encodeURIComponent(token)}?error=1`)
+  const link = await consumeLoginLink(token)
+  if (!link) redirect(`/login/link/${encodeURIComponent(token)}?error=1`)
   await destroySession()
-  await createSession(profileId)
+  await createSession(link.profileId, true, link.label)
   redirect('/')
+}
+
+/** 管理者: この端末を使う人の名前を変える（空にすると本人） */
+export async function setDeviceLabel(formData: FormData) {
+  const user = await requireUser()
+  if (!user.canAdmin) throw new ForbiddenError()
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  const label = String(formData.get('label') ?? '').trim().slice(0, 20)
+  if (token) await sql`update sessions set label = ${label || null} where token_hash = ${sha256(token)} and profile_id = ${user.id}`
+  redirect('/settings?devices=named')
 }
 
 /** この端末以外をすべてログアウトする */

@@ -606,6 +606,9 @@ test.describe.serial('主要フロー', () => {
   test('ほかの端末でも使う：ログイン用リンクで、コーチの端末から同じアカウントに入れる', async ({ browser }) => {
     await admin.goto('/settings')
     await admin.getByRole('button', { name: 'ログイン用リンクを作る' }).click()
+    await expect(admin.getByText('使う人の名前を入れてください')).toBeVisible()
+    await admin.getByPlaceholder('例：田中コーチ').fill('田中コーチ')
+    await admin.getByRole('button', { name: 'ログイン用リンクを作る' }).click()
     const url = await admin.getByText(/\/login\/link\//).innerText()
 
     const { page: coach } = await newUser(browser)
@@ -613,6 +616,22 @@ test.describe.serial('主要フロー', () => {
     await expect(coach.getByRole('heading', { name: /さんのアカウントでログインします/ })).toBeVisible()
     await coach.getByRole('button', { name: 'ログインする' }).click()
     await expect(coach.getByRole('heading', { name: 'クラブの状況（管理者）' })).toBeVisible()
+    // コーチの端末で書いたものには、管理者にだけ「田中コーチ」と出る（保護者には出ない）
+    await coach.goto('/chat')
+    await coach.getByText('大会連絡').click()
+    await coach.getByPlaceholder('メッセージ').fill('明日は9時集合です')
+    await coach.getByRole('button', { name: '送信' }).click()
+    await expect(coach.getByText('明日は9時集合です')).toBeVisible()
+    await admin.goto('/chat')
+    await admin.getByText('大会連絡').click()
+    await expect(admin.getByText('明日は9時集合です')).toBeVisible()
+    await expect(admin.getByText('田中コーチ', { exact: true })).toBeVisible()
+    await parent.goto('/chat')
+    await parent.getByText('大会連絡').click()
+    await expect(parent.getByText('明日は9時集合です')).toBeVisible()
+    await expect(parent.getByText('田中コーチ')).toHaveCount(0)
+    await admin.goto('/settings')
+
     // 同じリンクは2回使えない
     const { page: third } = await newUser(browser)
     await third.goto(new URL(url).pathname)
