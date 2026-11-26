@@ -16,8 +16,8 @@ export default async function RoomSettingsPage({ params }: PageProps<'/chat/[id]
   const user = await requireUser()
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id) || !(await isRoomMember(user.id, id))) notFound()
-  const [room] = await sql<{ name: string; muted: boolean; is_everyone: boolean }[]>`
-    select r.name, cm.muted, r.is_everyone from chat_rooms r join chat_members cm on cm.room_id = r.id and cm.profile_id = ${user.id} where r.id = ${id}`
+  const [room] = await sql<{ name: string; muted: boolean; is_everyone: boolean; is_staff: boolean }[]>`
+    select r.name, cm.muted, r.is_everyone, r.is_staff from chat_rooms r join chat_members cm on cm.room_id = r.id and cm.profile_id = ${user.id} where r.id = ${id}`
   const [note] = await sql<{ body: string }[]>`select body from chat_notes where room_id = ${id}`
   const current = (await sql<{ profile_id: string }[]>`select profile_id from chat_members where room_id = ${id}`).map((r) => r.profile_id)
   const members = user.isAdmin ? (await membersWithChildren()).filter((m) => m.id !== user.id) : []
@@ -47,6 +47,14 @@ export default async function RoomSettingsPage({ params }: PageProps<'/chat/[id]
               <h2 className="font-bold">アンケートを作る</h2>
               <RoomPollForm roomId={id} />
             </section>
+            {room.is_staff ? (
+            <section className="card space-y-2 p-4">
+              <h2 className="font-bold">{room.name}</h2>
+              <p className="text-sm text-muted">
+                この家族の保護者とスタッフ（管理者）全員の連絡用チャットです。保護者が登録すると自動で作られ、同じお子さんの保護者は1つにまとまります。名前とメンバーは自動で決まり、削除はできません。
+              </p>
+            </section>
+            ) : (
             <form action={updateRoom} className="card space-y-4 p-4">
               <input type="hidden" name="roomId" value={id} />
               <h2 className="font-bold">{room.is_everyone ? 'ルーム名' : 'ルーム名とメンバー'}</h2>
@@ -60,7 +68,8 @@ export default async function RoomSettingsPage({ params }: PageProps<'/chat/[id]
               )}
               <SubmitButton>保存</SubmitButton>
             </form>
-            {!room.is_everyone && (
+            )}
+            {!room.is_everyone && !room.is_staff && (
             <section className="card p-4">
               <ActionButton action={deleteRoom.bind(null, id)} className="btn-secondary w-full text-danger" confirm="このルームとメッセージをすべて削除しますか？">
                 ルームを削除

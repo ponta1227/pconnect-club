@@ -429,7 +429,14 @@ test.describe.serial('主要フロー', () => {
     await admin.getByRole('button', { name: '送信' }).click()
     await expect(admin.getByText('よろしくお願いします')).toBeVisible()
 
+    // スタッフ連絡のチャットは、保護者ごとに自動でできている
     await parent.goto('/chat')
+    await expect(parent.getByText('スタッフへの連絡')).toBeVisible()
+    await admin.goto('/chat')
+    await admin.getByText(/まだやりとりのない保護者/).click()
+    await expect(admin.getByText(/山田太郎/).first()).toBeVisible()
+    await admin.getByText('大会連絡').click()
+    await expect(admin.getByText('よろしくお願いします')).toBeVisible()
     await parent.getByText('大会連絡').click()
     await expect(parent.getByText('よろしくお願いします')).toBeVisible()
     await parent.getByPlaceholder('メッセージ').fill('こちらこそ')

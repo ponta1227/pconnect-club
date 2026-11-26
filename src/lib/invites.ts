@@ -4,6 +4,7 @@ import { randomToken, sha256 } from './crypto'
 import { env } from './env'
 import { adminIds } from './access'
 import { notifyLater } from './notify'
+import { syncStaffRooms } from './staff-chat'
 
 export type InviteKind = 'club' | 'family' | 'child'
 /** クラブ招待の相手: BANDから移行する人／新しく入会する人 */
@@ -118,6 +119,7 @@ export async function resolveLogin(
     values (${identity.lineUserId}, ${identity.name}, ${identity.picture}, ${email}, ${!!email && verified}, ${joinRoute})
     returning id`
   if (invite.kind === 'family') await applyFamilyInvite(invite, p.id)
+  await syncStaffRooms()
   return { ok: true, profileId: p.id }
 }
 

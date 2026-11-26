@@ -6,6 +6,7 @@ import { sql } from '@/lib/db'
 import { adminIds, myChildIds } from '@/lib/access'
 import { createInvite } from '@/lib/invites'
 import { notifyLater } from '@/lib/notify'
+import { syncStaffRooms } from '@/lib/staff-chat'
 import { checkPassword, hashPassword, normalizeLoginId } from '@/lib/login'
 
 /** 名簿の子どもに紐づけを申請（管理者が承認） */
@@ -70,6 +71,7 @@ export async function removeFamilyMember(childId: string, profileId: string) {
   if (!(await myChildIds(user)).includes(childId)) throw new Error('権限がありません')
   if (profileId === user.id) throw new Error('自分自身は外せません')
   await sql`delete from guardian_children where child_id = ${childId} and profile_id = ${profileId} and via = 'family_invite'`
+  await syncStaffRooms()
   refresh()
 }
 

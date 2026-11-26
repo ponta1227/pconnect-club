@@ -116,7 +116,9 @@ export async function updateRoom(formData: FormData) {
   const roomId = String(formData.get('roomId'))
   if (!(await isRoomMember(user.id, roomId))) redirect('/chat')
   const name = String(formData.get('name') ?? '').trim().slice(0, 50)
-  const [room] = await sql<{ is_everyone: boolean }[]>`select is_everyone from chat_rooms where id = ${roomId}`
+  const [room] = await sql<{ is_everyone: boolean; is_staff: boolean }[]>`select is_everyone, is_staff from chat_rooms where id = ${roomId}`
+  // スタッフ連絡は名前もメンバーも自動で決まる
+  if (room?.is_staff) redirect(`/chat/${roomId}`)
   if (room?.is_everyone) {
     // 全体チャットは全員が自動で入るので、名前だけ変えられる
     if (name) await sql`update chat_rooms set name = ${name} where id = ${roomId}`
@@ -138,8 +140,9 @@ export async function deleteRoom(roomId: string) {
   const user = await requireUser()
   assertAdmin(user)
   if (!(await isRoomMember(user.id, roomId))) throw new Error('このルームのメンバーではありません')
-  const [room] = await sql<{ is_everyone: boolean }[]>`select is_everyone from chat_rooms where id = ${roomId}`
+  const [room] = await sql<{ is_everyone: boolean; is_staff: boolean }[]>`select is_everyone, is_staff from chat_rooms where id = ${roomId}`
   if (room?.is_everyone) throw new Error('全体チャットは削除できません')
+  if (room?.is_staff) throw new Error('スタッフ連絡のチャットは削除できません')
   await sql`delete from polls where owner_type = 'room' and owner_id = ${roomId}`
   await sql`delete from chat_rooms where id = ${roomId}`
   redirect('/chat')

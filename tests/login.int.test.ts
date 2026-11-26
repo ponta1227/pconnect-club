@@ -227,6 +227,75 @@ describe('全体チャット', () => {
   })
 })
 
+describe('スタッフ連絡のチャット（家族ごと）', () => {
+  const staffRoomsOf = async (p: string) =>
+    (await db<{ id: string }[]>`select r.id from chat_rooms r join chat_members cm on cm.room_id = r.id where r.is_staff and cm.profile_id = ${p}`).map((r) => r.id)
+  const membersOf = async (room: string) => (await db<{ profile_id: string }[]>`select profile_id from chat_members where room_id = ${room}`).map((r) => r.profile_id)
+  const adult = async (name: string) => (await db<{ id: string }[]>`insert into profiles (display_name, terms_agreed_at, onboarded_at) values (${name}, now(), now()) returning id`)[0].id
+  const link = (p: string, c: string) => db`insert into guardian_children (profile_id, child_id, status, via) values (${p}, ${c}, 'approved', 'admin')`
+
+  it('保護者ごとに自動で作られ、同じ子の保護者は1つにまとまる。管理者は全部に入り、子どもは入らない', async () => {
+    const { syncStaffRooms } = await import('@/lib/staff-chat')
+    const chat = await import('@/app/actions/chat')
+    const admin2 = (await db<{ id: string }[]>`insert into profiles (display_name, role) values ('コーチ', 'admin') returning id`)[0].id
+    const [father, mother, other] = [await adult('父'), await adult('母'), await adult('よその保護者')]
+    const [kid] = await db<{ id: string }[]>`insert into children (full_name, kana, grade) values ('連絡 太郎', 'れんらくたろう', 3) returning id`
+    await link(father, kid.id)
+    await syncStaffRooms()
+
+    // まだ家族になっていない母は、いったん自分だけの部屋を持つ
+    const [firstRoom] = await staffRoomsOf(father)
+    const [motherRoom] = await staffRoomsOf(mother)
+    expect(firstRoom).toBeTruthy()
+    expect(motherRoom).not.toBe(firstRoom)
+    expect((await membersOf(firstRoom)).sort()).toEqual([father, ids.admin, admin2].sort())
+    expect((await db<{ name: string }[]>`select name from chat_rooms where id = ${firstRoom}`)[0].name).toBe('スタッフ連絡｜連絡 太郎')
+    expect(await staffRoomsOf(ids.kidUser)).toEqual([])
+    expect((await staffRoomsOf(ids.admin)).length).toBeGreaterThanOrEqual(3)
+    await db`insert into chat_messages (room_id, sender_id, body) values (${motherRoom}, ${mother}, '母からの連絡')`
+
+    // 同じ子の保護者になったら1つにまとまり、それまでのメッセージも引き継ぐ
+    await link(mother, kid.id)
+    await syncStaffRooms()
+    const [fatherRoom, ...rest] = await staffRoomsOf(father)
+    expect(rest).toEqual([])
+    expect(await staffRoomsOf(mother)).toEqual([fatherRoom])
+    expect((await db`select 1 from chat_rooms where id = any(${[firstRoom, motherRoom]}::uuid[])`).length).toBe(1)
+    expect((await db`select 1 from chat_messages where room_id = ${fatherRoom} and body = '母からの連絡'`).length).toBe(1)
+    // 何度呼んでも増えない
+    await syncStaffRooms()
+    expect((await staffRoomsOf(father)).length).toBe(1)
+    // ほかの家族は入っていない・入れない
+    expect(await membersOf(fatherRoom)).not.toContain(other)
+    expect((await staffRoomsOf(other)).length).toBe(1)
+
+    // 管理者でも、メンバーの変更・削除はできない
+    as('admin')
+    const fd = new FormData()
+    fd.set('roomId', fatherRoom)
+    fd.set('name', '勝手な名前')
+    fd.append('members', other)
+    await expect(chat.updateRoom(fd)).rejects.toThrow(/REDIRECT/)
+    expect(await membersOf(fatherRoom)).not.toContain(other)
+    await expect(chat.deleteRoom(fatherRoom)).rejects.toThrow(/削除できません/)
+
+    // 家族から外れたら、その部屋からも外れて自分の部屋になる
+    await db`delete from guardian_children where profile_id = ${mother}`
+    await syncStaffRooms()
+    const [f2, m2] = [await staffRoomsOf(father), await staffRoomsOf(mother)]
+    expect([f2.length, m2.length]).toEqual([1, 1])
+    expect(f2[0]).not.toBe(m2[0])
+
+    // 管理者でなくなった人は、ほかの家族の部屋から外れる
+    const adminActions = await import('@/app/actions/admin')
+    await adminActions.setRole(admin2, 'member').catch(() => {})
+    expect(await membersOf(f2[0])).not.toContain(admin2)
+    expect((await staffRoomsOf(admin2)).length).toBe(1)
+    expect(await staffRoomsOf(father)).toEqual(f2)
+    expect(await staffRoomsOf(mother)).toEqual(m2)
+  })
+})
+
 describe('BANDから移行する人の名簿', () => {
   const list = ['山﨑琥珀', '入野　昊', '髙木　優月', '湊 玲皇', '王瑞豪', '渡邉　晴香', '齋藤　暖斗', '持田凌太朗']
 

@@ -9,6 +9,7 @@ import { sql } from '@/lib/db'
 import { randomToken, sha256 } from '@/lib/crypto'
 import { env } from '@/lib/env'
 import { sendEmail } from '@/lib/notify'
+import { syncStaffRooms } from '@/lib/staff-chat'
 import { nextEnrollStep } from '@/lib/enroll'
 import { FORCED_KINDS, NOTIFY_KINDS, type NotifyKind } from '@/lib/notify-kinds'
 
@@ -105,6 +106,7 @@ export async function leaveClub(formData: FormData) {
     await tx`delete from chat_members where profile_id = ${user.id}`
     await tx`delete from notification_queue where profile_id = ${user.id}`
   })
+  await syncStaffRooms()
   await destroySession()
   redirect('/login')
 }

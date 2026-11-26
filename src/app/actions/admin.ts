@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
+import { syncStaffRooms } from '@/lib/staff-chat'
 import { assertAdmin, requireUser } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { hashPin } from '@/lib/crypto'
@@ -28,6 +29,7 @@ export async function approveLink(profileId: string, childId: string) {
     where profile_id = ${profileId} and child_id = ${childId} and status = 'pending'
     returning (select full_name from children where id = ${childId}) as name`
   if (row) {
+    await syncStaffRooms()
     notifyLater([profileId], 'approval', {
       title: 'お子さんの登録が承認されました',
       body: `${row.name}さんの保護者として登録されました`,
@@ -172,12 +174,14 @@ export async function linkGuardianByAdmin(childId: string, profileId: string) {
     insert into guardian_children (profile_id, child_id, status, via, approved_by, approved_at)
     values (${profileId}, ${childId}, 'approved', 'admin', ${user.id}, now())
     on conflict (profile_id, child_id) do update set status = 'approved', approved_by = ${user.id}, approved_at = now()`
+  await syncStaffRooms()
   refresh()
 }
 
 export async function unlinkGuardian(childId: string, profileId: string) {
   await admin()
   await sql`delete from guardian_children where child_id = ${childId} and profile_id = ${profileId}`
+  await syncStaffRooms()
   refresh()
 }
 
@@ -258,6 +262,11 @@ export async function setRole(profileId: string, role: 'admin' | 'member') {
     if (count === 0) throw new Error('管理者が1人もいなくなるため変更できません')
   }
   await sql`update profiles set role = ${role} where id = ${profileId} and account_kind = 'adult'`
+  // 管理者でなくなった人は、ほかの家族の「スタッフ連絡」から外す
+  if (role === 'member') {
+    await sql`delete from chat_members cm using chat_rooms r where r.id = cm.room_id and r.is_staff and cm.profile_id = ${profileId}`
+  }
+  await syncStaffRooms()
   if (profileId === user.id && role === 'member') redirect('/')
   refresh()
 }
@@ -279,6 +288,7 @@ export async function removeMember(profileId: string) {
     await tx`delete from chat_members where profile_id = ${profileId}`
     await tx`delete from sessions where profile_id = ${profileId}`
   })
+  await syncStaffRooms()
   refresh()
 }
 
