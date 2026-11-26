@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireUser } from '@/lib/auth'
 import { sql } from '@/lib/db'
+import { STAFF_NAME } from '@/lib/staff-name'
 import { isRoomMember } from '@/lib/access'
 import { fetchMessages, markRoomRead, roomMembers } from '@/lib/chat'
 import { pollsFor } from '@/lib/polls'
@@ -22,9 +23,9 @@ export default async function RoomPage({ params, searchParams }: PageProps<'/cha
   if (!/^[0-9a-f-]{36}$/.test(id) || !(await isRoomMember(user.id, id))) notFound()
   const [room] = await sql<{ name: string }[]>`select name from chat_rooms where id = ${id}`
   const [members, note, polls] = await Promise.all([
-    roomMembers(id),
+    roomMembers(id, user.isAdmin),
     sql<{ body: string; updated_at: Date; name: string | null }[]>`
-      select n.body, n.updated_at, p.display_name as name from chat_notes n left join profiles p on p.id = n.updated_by where n.room_id = ${id}`,
+      select n.body, n.updated_at, case when p.role = 'admin' and not ${user.isAdmin}::boolean then ${STAFF_NAME} else p.display_name end as name from chat_notes n left join profiles p on p.id = n.updated_by where n.room_id = ${id}`,
     pollsFor('room', [id], user),
   ])
 

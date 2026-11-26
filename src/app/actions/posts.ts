@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
 import { assertAdmin, requireUser, staffLabel } from '@/lib/auth'
+import { STAFF_NAME } from '@/lib/staff-name'
 import { sql } from '@/lib/db'
 import { adultsForClasses, allAdultIds } from '@/lib/access'
 import { attachTo, detachMissing } from '@/lib/files'
@@ -146,7 +147,7 @@ export async function addComment(postId: string, body: string) {
   const others = await sql<{ profile_id: string }[]>`
     select distinct profile_id from post_comments where post_id = ${postId} and profile_id is not null`
   const recipients = [post.created_by, ...others.map((o) => o.profile_id)].filter((x): x is string => !!x && x !== user.id)
-  notifyLater(recipients, 'comment', { title: `コメント: ${post.title}`, body: `${user.displayName}: ${text.slice(0, 80)}`, url: `/board/${postId}` })
+  notifyLater(recipients, 'comment', { title: `コメント: ${post.title}`, body: `${user.canAdmin ? STAFF_NAME : user.displayName}: ${text.slice(0, 80)}`, url: `/board/${postId}` })
   refresh()
 }
 

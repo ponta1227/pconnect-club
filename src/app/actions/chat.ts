@@ -9,6 +9,7 @@ import { isRoomMember } from '@/lib/access'
 import { attachTo } from '@/lib/files'
 import { notifyLater } from '@/lib/notify'
 import { fetchMessages } from '@/lib/chat'
+import { STAFF_NAME } from '@/lib/staff-name'
 
 const SendInput = z.object({
   roomId: z.string().uuid(),
@@ -46,10 +47,11 @@ export async function sendMessage(raw: z.input<typeof SendInput>) {
   const [room] = await sql<{ name: string }[]>`select name from chat_rooms where id = ${v.roomId}`
   const preview = body ? body.slice(0, 80) : '写真・ファイルを送信しました'
   const url = `/chat/${v.roomId}`
+  const senderName = user.canAdmin ? STAFF_NAME : user.displayName
 
   // メンション：ミュート中でも・夜間でも通知
   if (mentions.length) {
-    notifyLater(mentions, 'mention', { title: `${room.name}でメンションされました`, body: `${user.displayName}: ${preview}`, url }, { bypassQuiet: true })
+    notifyLater(mentions, 'mention', { title: `${room.name}でメンションされました`, body: `${senderName}: ${preview}`, url }, { bypassQuiet: true })
   }
   // 通常の新着：ミュートしていない人に、同じルームでは30秒に1回まで
   const targets = await sql<{ profile_id: string }[]>`
@@ -59,7 +61,7 @@ export async function sendMessage(raw: z.input<typeof SendInput>) {
       and (last_push_at is null or last_push_at < now() - interval '30 seconds')
       and last_read_at < now() - interval '5 seconds'
     returning profile_id`
-  notifyLater(targets.map((t) => t.profile_id), 'chat', { title: room.name, body: `${user.displayName}: ${preview}`, url })
+  notifyLater(targets.map((t) => t.profile_id), 'chat', { title: room.name, body: `${senderName}: ${preview}`, url })
 
   const [msg] = await fetchMessages(v.roomId, { after: new Date(Date.now() - 60_000), limit: 100, staff: user.isAdmin }).then((list) => list.filter((m) => m.id === msgId))
   return msg

@@ -368,6 +368,15 @@ describe('ほかの端末でも同じアカウントを使う（ログイン用�
     expect(label(forAdmin, '保護者が書いた')).toBeNull()
     const forParent = await fetchMessages(room.id, { limit: 100 })
     expect(forParent.every((m) => m.staff_label === null)).toBe(true)
+    // 保護者には管理者の個人名を出さず「スタッフ」と見せる（管理者には本当の名前）
+    const sender = (list: { body: string; sender_name: string }[], body: string) => list.find((m) => m.body === body)!.sender_name
+    expect(sender(forParent, 'コーチが書いた')).toBe('スタッフ')
+    expect(sender(forParent, '本人が書いた')).toBe('スタッフ')
+    expect(sender(forParent, '保護者が書いた')).toBe('保護者A')
+    expect(sender(forAdmin, 'コーチが書いた')).toBe('管理者')
+    const { roomMembers } = await import('@/lib/chat')
+    expect((await roomMembers(room.id)).map((m) => m.display_name)).not.toContain('管理者')
+    expect((await roomMembers(room.id, true)).map((m) => m.display_name)).toContain('管理者')
 
     // 掲示板のコメントにも控える
     const [post] = await db<{ id: string }[]>`insert into posts (title, body, published_at, created_by) values ('お知らせ', '', now(), ${ids.admin}) returning id`

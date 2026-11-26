@@ -1,13 +1,16 @@
 import { requireAdult } from '@/lib/auth'
 import { membersWithChildren } from '@/lib/members'
+import { STAFF_NAME } from '@/lib/staff-name'
 import { Avatar, Page, PageHeader } from '@/components/ui'
 
 export const metadata = { title: 'メンバー' }
 
 export default async function MembersPage() {
-  await requireAdult()
+  const user = await requireAdult()
   // 子どもアカウントは一覧に出さない
-  const members = (await membersWithChildren()).filter((m) => m.kind !== 'child')
+  const members = (await membersWithChildren())
+    .filter((m) => m.kind !== 'child')
+    .map((m) => (m.kind === 'admin' && !user.isAdmin ? { ...m, display_name: STAFF_NAME, avatar_url: null } : m))
   return (
     <>
       <PageHeader title="メンバー" sub={`${members.length}人`} back="/more" />

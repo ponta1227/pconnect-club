@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireUser } from '@/lib/auth'
 import { sql } from '@/lib/db'
+import { STAFF_NAME } from '@/lib/staff-name'
 import { myChildren } from '@/lib/access'
 import { getEvent, mapUrl } from '@/lib/events'
 import { rsvpOpen } from '@/lib/event-rules'
@@ -24,7 +25,7 @@ export default async function PostPage({ params }: PageProps<'/board/[id]'>) {
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const [post] = await sql<{ id: string; title: string; body: string; pinned: boolean; urgent: boolean; published_at: Date | null; updated_at: Date; author: string | null; staff_label: string | null; author_avatar: string | null; event_id: string | null; class_ids: string[]; class_names: string[] }[]>`
-    select p.id, p.title, p.body, p.pinned, p.urgent, p.published_at, p.updated_at, pr.display_name as author, case when ${user.isAdmin}::boolean then p.staff_label end as staff_label, pr.avatar_url as author_avatar, p.event_id,
+    select p.id, p.title, p.body, p.pinned, p.urgent, p.published_at, p.updated_at, case when pr.role = 'admin' and not ${user.isAdmin}::boolean then ${STAFF_NAME} else pr.display_name end as author, case when ${user.isAdmin}::boolean then p.staff_label end as staff_label, case when pr.role = 'admin' and not ${user.isAdmin}::boolean then null else pr.avatar_url end as author_avatar, p.event_id,
       coalesce((select array_agg(class_id) from post_classes pc where pc.post_id = p.id), '{}') as class_ids,
       coalesce((select array_agg(c.name order by c.sort) from post_classes pc join classes c on c.id = pc.class_id where pc.post_id = p.id), '{}') as class_names
     from posts p left join profiles pr on pr.id = p.created_by where p.id = ${id}`
@@ -38,7 +39,7 @@ export default async function PostPage({ params }: PageProps<'/board/[id]'>) {
   const [files, comments, reactions, readers, polls, event, unread] = await Promise.all([
     attachmentsFor('post', [id]),
     sql<{ id: string; body: string; created_at: Date; profile_id: string | null; name: string | null; staff_label: string | null; avatar: string | null }[]>`
-      select c.id, c.body, c.created_at, c.profile_id, p.display_name as name, case when ${user.isAdmin}::boolean then c.staff_label end as staff_label, p.avatar_url as avatar
+      select c.id, c.body, c.created_at, c.profile_id, case when p.role = 'admin' and not ${user.isAdmin}::boolean then ${STAFF_NAME} else p.display_name end as name, case when ${user.isAdmin}::boolean then c.staff_label end as staff_label, case when p.role = 'admin' and not ${user.isAdmin}::boolean then null else p.avatar_url end as avatar
       from post_comments c left join profiles p on p.id = c.profile_id
       where c.post_id = ${id} and c.deleted_at is null order by c.created_at`,
     sql<{ emoji: string; profile_id: string }[]>`select emoji, profile_id from post_reactions where post_id = ${id}`,

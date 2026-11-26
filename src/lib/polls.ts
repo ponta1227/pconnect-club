@@ -1,5 +1,6 @@
 import 'server-only'
 import { sql } from './db'
+import { STAFF_NAME } from './staff-name'
 import type { CurrentUser } from './auth'
 import { adultsForClasses, childAccountsForClasses } from './access'
 
@@ -52,7 +53,7 @@ export async function pollsFor(ownerType: 'post' | 'room', ownerIds: string[], u
     sql<{ id: string; poll_id: string; label: string; starts_at: Date | null }[]>`
       select id, poll_id, label, starts_at from poll_options where poll_id = any(${ids}::uuid[]) order by sort`,
     sql<{ poll_id: string; option_id: string; value: string; profile_id: string | null; name: string | null }[]>`
-      select v.poll_id, v.option_id, v.value, v.profile_id, pr.display_name as name
+      select v.poll_id, v.option_id, v.value, v.profile_id, case when pr.role = 'admin' and not ${user.isAdmin}::boolean then ${STAFF_NAME} else pr.display_name end as name
       from poll_votes v left join profiles pr on pr.id = v.profile_id where v.poll_id = any(${ids}::uuid[])`,
     sql<{ poll_id: string }[]>`select poll_id from poll_voters where poll_id = any(${ids}::uuid[]) and profile_id = ${user.id}`,
   ])

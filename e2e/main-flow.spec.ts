@@ -630,6 +630,10 @@ test.describe.serial('主要フロー', () => {
     await parent.getByText('大会連絡').click()
     await expect(parent.getByText('明日は9時集合です')).toBeVisible()
     await expect(parent.getByText('田中コーチ')).toHaveCount(0)
+    await expect(parent.getByText('スタッフ', { exact: true }).first()).toBeVisible()
+    await expect(parent.getByText('木村直登')).toHaveCount(0)
+    await parent.goto('/board')
+    await expect(parent.getByText('木村直登')).toHaveCount(0)
     await admin.goto('/settings')
 
     // 同じリンクは2回使えない

@@ -1,5 +1,6 @@
 import 'server-only'
 import { sql } from './db'
+import { STAFF_NAME } from './staff-name'
 
 export type ChatMessage = {
   id: string
@@ -26,13 +27,14 @@ export async function fetchMessages(roomId: string, opts: { after?: Date | null;
   const limit = Math.min(opts.limit ?? 50, 100)
   const after = opts.after ?? null
   const before = opts.before ?? null
+  const viewerAdmin = !!opts.staff
   const q = opts.q?.trim() ? `%${opts.q.trim()}%` : null
   const rows = await sql<Row[]>`
     select * from (
-      select m.id, m.sender_id, coalesce(p.display_name, '退会したメンバー') as sender_name, p.avatar_url as sender_avatar,
+      select m.id, m.sender_id, coalesce(case when p.role = 'admin' and not ${viewerAdmin}::boolean then ${STAFF_NAME} else p.display_name end, '退会したメンバー') as sender_name, case when p.role = 'admin' and not ${viewerAdmin}::boolean then null else p.avatar_url end as sender_avatar,
         case when m.deleted_at is null then m.body else '' end as body,
         m.created_at, m.deleted_at is not null as deleted, m.reply_to,
-        rp.display_name as reply_name, case when r.deleted_at is null then left(r.body, 60) else '（削除されました）' end as reply_body,
+        case when rp.role = 'admin' and not ${viewerAdmin}::boolean then ${STAFF_NAME} else rp.display_name end as reply_name, case when r.deleted_at is null then left(r.body, 60) else '（削除されました）' end as reply_body,
         m.mentions, m.poll_id, case when ${!!opts.staff}::boolean then m.staff_label end as staff_label,
         (select count(*)::int from chat_members cm where cm.room_id = m.room_id and cm.profile_id is distinct from m.sender_id and cm.last_read_at >= m.created_at) as read_count
       from chat_messages m
@@ -62,8 +64,8 @@ export async function markRoomRead(roomId: string, profileId: string) {
   await sql`update chat_members set last_read_at = now() where room_id = ${roomId} and profile_id = ${profileId}`
 }
 
-export async function roomMembers(roomId: string) {
+export async function roomMembers(roomId: string, viewerAdmin = false) {
   return sql<{ id: string; display_name: string; avatar_url: string | null; account_kind: string; role: string }[]>`
-    select p.id, p.display_name, p.avatar_url, p.account_kind, p.role from chat_members cm join profiles p on p.id = cm.profile_id
+    select p.id, case when p.role = 'admin' and not ${viewerAdmin}::boolean then ${STAFF_NAME} else p.display_name end as display_name, case when p.role = 'admin' and not ${viewerAdmin}::boolean then null else p.avatar_url end as avatar_url, p.account_kind, p.role from chat_members cm join profiles p on p.id = cm.profile_id
     where cm.room_id = ${roomId} and p.deleted_at is null order by p.display_name`
 }
