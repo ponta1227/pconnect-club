@@ -1,11 +1,12 @@
 import { requireUser } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { FORCED_KINDS, NOTIFY_KINDS, type NotifyKind } from '@/lib/notify-kinds'
-import { leaveClub, removeEmail, requestEmailVerification, updateDisplayName } from '@/app/actions/account'
+import { leaveClub, logoutOtherDevices, removeEmail, requestEmailVerification, updateDisplayName } from '@/app/actions/account'
 import { Notice, Page, PageHeader } from '@/components/ui'
 import { ActionButton, SubmitButton } from '@/components/client'
 import { PushToggle } from '@/components/push'
 import { FontSizeToggle, NotifySwitch } from '@/components/settings-controls'
+import { LoginLinkMaker } from '@/components/login-link'
 
 export const metadata = { title: '設定' }
 
@@ -22,6 +23,7 @@ export default async function SettingsPage({ searchParams }: PageProps<'/setting
   const overrides = await sql<{ kind: string; push: boolean; email: boolean }[]>`select kind, push, email from notification_settings where profile_id = ${user.id}`
   const map = new Map(overrides.map((o) => [o.kind, o]))
   const kinds = (Object.keys(NOTIFY_KINDS) as NotifyKind[]).filter((k) => !FORCED_KINDS.includes(k) && (user.isAdmin || !NOTIFY_KINDS[k].adminOnly))
+  const [{ devices }] = await sql<{ devices: number }[]>`select count(*)::int as devices from sessions where profile_id = ${user.id} and expires_at > now()`
   const emailMsg = typeof sp.email === 'string' ? EMAIL_MSG[sp.email] : undefined
 
   return (
@@ -89,6 +91,29 @@ export default async function SettingsPage({ searchParams }: PageProps<'/setting
           <h2 className="font-bold">文字の大きさ</h2>
           <FontSizeToggle value={user.fontSize} />
         </section>
+
+        {!user.isChild && (
+          <section className="card space-y-3 p-4">
+            <h2 className="font-bold">ほかの端末でも使う</h2>
+            <p className="text-sm text-muted">
+              {user.isAdmin
+                ? 'ほかのコーチの端末や、自分のパソコン・タブレットでも、このアカウントのまま使えます。リンクを作って、その端末で開いてもらってください。'
+                : '自分のパソコンやタブレットでも、このアカウントのまま使えます。リンクを作って、その端末で開いてください。'}
+            </p>
+            <LoginLinkMaker />
+            {sp.devices === 'out' && <Notice tone="ok">この端末以外をログアウトしました。</Notice>}
+            <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
+              <span className="text-sm">
+                いまログイン中の端末 <span className="num font-bold">{devices}</span>台
+              </span>
+              {devices > 1 && (
+                <ActionButton action={logoutOtherDevices} className="btn-secondary btn-sm" confirm="この端末以外をすべてログアウトしますか？">
+                  ほかの端末をログアウト
+                </ActionButton>
+              )}
+            </div>
+          </section>
+        )}
 
         {!user.isChild && (
           <details className="card p-4" open={!!sp.leave}>

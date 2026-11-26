@@ -152,14 +152,24 @@ export default async function HomePage() {
           </Link>
         ))}
 
-        {!user.isChild && !user.isAdmin && kids.length === 0 && (
-          <Link href="/children" className="todo-card flex items-center gap-2 p-4">
-            <span className="flex-1 font-semibold">
-              {links.pending > 0 ? 'お子さんの登録は管理者の承認待ちです' : 'お子さんを登録すると、参加の回答や欠席連絡ができます'}
-            </span>
-            <IconChevron className="h-5 w-5 shrink-0 text-muted" />
-          </Link>
-        )}
+        {!user.isChild && !user.isAdmin && kids.length === 0 &&
+          (links.pending > 0 ? (
+            <Link href="/children" className="todo-card flex items-center gap-2 p-4">
+              <span className="flex-1">
+                <span className="block font-bold">お子さんの登録は、管理者の承認待ちです</span>
+                <span className="block text-sm text-muted">承認されると、参加の回答や欠席連絡ができるようになります。</span>
+              </span>
+              <IconChevron className="h-5 w-5 shrink-0 text-muted" />
+            </Link>
+          ) : (
+            <section className="rounded-2xl border-2 border-ball bg-ball-soft p-4" aria-label="お子さんの登録">
+              <h2 className="text-lg font-bold">お子さんの情報が登録されていません</h2>
+              <p className="mt-1 text-sm">このままでは、練習の欠席連絡や大会の参加回答ができません。お子さんの名前と学年を登録してください（1分ほどで終わります）。</p>
+              <Link href="/children" className="btn-primary mt-3 w-full text-center">
+                お子さんを登録する
+              </Link>
+            </section>
+          ))}
 
         {/* ---------- やること */}
         <section aria-labelledby="todo-title">

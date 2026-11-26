@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { refresh } from 'next/cache'
 import { z } from 'zod'
 import { cookies } from 'next/headers'
-import { destroySession, requireUser, VIEW_COOKIE, ForbiddenError } from '@/lib/auth'
+import { assertAdult, createSession, destroySession, requireUser, SESSION_COOKIE, VIEW_COOKIE, ForbiddenError } from '@/lib/auth'
+import { consumeLoginLink, issueLoginLink } from '@/lib/login-link'
 import { sql } from '@/lib/db'
 import { randomToken, sha256 } from '@/lib/crypto'
 import { env } from '@/lib/env'
@@ -119,4 +120,31 @@ export async function setMemberPreview(on: boolean) {
   if (on) store.set(VIEW_COOKIE, 'member', { httpOnly: true, secure: env.isProd(), sameSite: 'lax', path: '/', maxAge: 60 * 60 * 12 })
   else store.delete(VIEW_COOKIE)
   redirect(on ? '/' : '/admin')
+}
+
+// ------------------------------------------------------------ ほかの端末でも同じアカウントを使う
+
+/** ログイン用リンクを作る（1回だけ・30分だけ使える）。子どもアカウントは不可 */
+export async function createLoginLink(): Promise<{ url: string }> {
+  const user = await requireUser()
+  assertAdult(user)
+  return { url: await issueLoginLink(user.id) }
+}
+
+/** ログイン用リンクを開いた端末でログインする */
+export async function loginWithLink(token: string) {
+  const profileId = await consumeLoginLink(token)
+  if (!profileId) redirect(`/login/link/${encodeURIComponent(token)}?error=1`)
+  await destroySession()
+  await createSession(profileId)
+  redirect('/')
+}
+
+/** この端末以外をすべてログアウトする */
+export async function logoutOtherDevices() {
+  const user = await requireUser()
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  if (!token) return
+  await sql`delete from sessions where profile_id = ${user.id} and token_hash <> ${sha256(token)}`
+  redirect('/settings?devices=out')
 }

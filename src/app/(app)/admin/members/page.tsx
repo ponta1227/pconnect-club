@@ -9,11 +9,17 @@ export const metadata = { title: 'メンバーと権限' }
 export default async function AdminMembersPage() {
   const me = await requireAdmin()
   const members = await membersWithChildren()
+  const noKids = members.filter((m) => m.kind === 'member' && m.children.length === 0 && m.pending === 0).length
   return (
     <>
       <PageHeader title="メンバーと権限" back="/admin" />
       <Page className="space-y-2">
         <p className="px-1 text-sm text-muted">コーチには「管理者」を付与してください。管理者は予定・掲示板・名簿などを編集できます。</p>
+        {noKids > 0 && (
+          <p className="rounded-lg bg-ball-soft px-3 py-2 text-sm font-semibold text-ball-ink">
+            お子さんを登録していない保護者が <span className="num">{noKids}</span>人います（下の一覧に「お子さん未登録」と出ています）。
+          </p>
+        )}
         <ul className="card divide-y divide-line">
           {members.map((m) => (
             <li key={m.id} className="space-y-2 px-4 py-3">
@@ -25,7 +31,13 @@ export default async function AdminMembersPage() {
                     {m.kind === 'admin' && <span className="badge ml-1 bg-brand-soft text-brand">管理者</span>}
                     {m.kind === 'child' && <span className="badge ml-1 bg-bg text-muted">子どもアカウント</span>}
                   </span>
-                  {m.children.length > 0 && <span className="block truncate text-xs text-muted">{m.children.join('・')}</span>}
+                  {m.children.length > 0 ? (
+                    <span className="block truncate text-xs text-muted">{m.children.join('・')}</span>
+                  ) : m.kind === 'member' ? (
+                    <span className="mt-0.5 inline-block rounded bg-ball-soft px-1.5 text-xs font-semibold text-ball-ink">
+                      {m.pending > 0 ? 'お子さんの登録が承認待ち' : 'お子さん未登録'}
+                    </span>
+                  ) : null}
                 </span>
               </div>
               {m.kind !== 'child' && m.id !== me.id && (

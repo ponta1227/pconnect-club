@@ -296,6 +296,47 @@ describe('スタッフ連絡のチャット（家族ごと）', () => {
   })
 })
 
+describe('ほかの端末でも同じアカウントを使う（ログイン用リンク）', () => {
+  it('1回だけ・期限内だけ使える。子どもアカウントは作れない。ほかの端末をログアウトできる', async () => {
+    const account = await import('@/app/actions/account')
+    const link = await import('@/lib/login-link')
+    as('kidUser')
+    await expect(account.createLoginLink()).rejects.toThrow()
+    as(null)
+    await expect(account.createLoginLink()).rejects.toThrow()
+
+    as('admin')
+    const { url } = await account.createLoginLink()
+    const tok = url.split('/login/link/')[1]
+    expect(tok.length).toBeGreaterThan(20)
+    expect((await db`select 1 from login_links where token_hash = ${tok}`).length).toBe(0) // 生のトークンは保存しない
+    expect(await link.peekLoginLink(tok)).toEqual({ name: '管理者' })
+    expect(await link.peekLoginLink(tok)).toEqual({ name: '管理者' }) // 見ただけでは使われない
+
+    const before = (await db`select 1 from sessions where profile_id = ${ids.admin}`).length
+    as(null)
+    await expect(account.loginWithLink(tok)).rejects.toThrow(/REDIRECT:\/$/)
+    expect((await db`select 1 from sessions where profile_id = ${ids.admin}`).length).toBe(before + 1)
+    // 2回目は使えない
+    await expect(account.loginWithLink(tok)).rejects.toThrow(/error=1/)
+    expect(await link.peekLoginLink(tok)).toBeNull()
+    await expect(account.loginWithLink('でたらめ')).rejects.toThrow(/error=1/)
+
+    // 期限切れ
+    as('admin')
+    const old = (await account.createLoginLink()).url.split('/login/link/')[1]
+    await db`update login_links set expires_at = now() - interval '1 minute' where used_at is null`
+    expect(await link.consumeLoginLink(old)).toBeNull()
+
+    // この端末以外をログアウト（自分のセッションと、ほかの人のセッションは残る）
+    const others = (await db`select 1 from sessions where profile_id <> ${ids.admin}`).length
+    await expect(account.logoutOtherDevices()).rejects.toThrow(/devices=out/)
+    expect((await db`select 1 from sessions where profile_id = ${ids.admin}`).length).toBe(1)
+    expect((await db`select 1 from sessions where profile_id <> ${ids.admin}`).length).toBe(others)
+    expect((await auth.getCurrentUser())?.id).toBe(ids.admin)
+  })
+})
+
 describe('BANDから移行する人の名簿', () => {
   const list = ['山﨑琥珀', '入野　昊', '髙木　優月', '湊 玲皇', '王瑞豪', '渡邉　晴香', '齋藤　暖斗', '持田凌太朗']
 

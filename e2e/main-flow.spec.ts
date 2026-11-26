@@ -137,7 +137,7 @@ test.describe.serial('主要フロー', () => {
     await hanaCard.getByRole('button', { name: '申告する' }).click()
     await expect(parent.getByRole('link', { name: '次へ', exact: true })).toBeVisible()
     await finishOnboarding(parent)
-    await expect(parent.getByText('お子さんの登録は管理者の承認待ちです')).toBeVisible()
+    await expect(parent.getByText('お子さんの登録は、管理者の承認待ちです')).toBeVisible()
 
     await admin.goto('/admin/approvals')
     await expect(admin.getByText('保護者の紐づけ申請 2件')).toBeVisible()
@@ -601,5 +601,45 @@ test.describe.serial('主要フロー', () => {
     await admin.locator('input[name=form_url]').fill('')
     await admin.getByRole('button', { name: '保存する' }).click()
     await expect(admin.getByText('保存しました。')).toBeVisible()
+  })
+
+  test('ほかの端末でも使う：ログイン用リンクで、コーチの端末から同じアカウントに入れる', async ({ browser }) => {
+    await admin.goto('/settings')
+    await admin.getByRole('button', { name: 'ログイン用リンクを作る' }).click()
+    const url = await admin.getByText(/\/login\/link\//).innerText()
+
+    const { page: coach } = await newUser(browser)
+    await coach.goto(new URL(url).pathname)
+    await expect(coach.getByRole('heading', { name: /さんのアカウントでログインします/ })).toBeVisible()
+    await coach.getByRole('button', { name: 'ログインする' }).click()
+    await expect(coach.getByRole('heading', { name: 'クラブの状況（管理者）' })).toBeVisible()
+    // 同じリンクは2回使えない
+    const { page: third } = await newUser(browser)
+    await third.goto(new URL(url).pathname)
+    await expect(third.getByRole('heading', { name: 'このリンクは使えません' })).toBeVisible()
+
+    await admin.reload()
+    await expect(admin.getByText(/いまログイン中の端末/)).toContainText('2台')
+    await admin.getByRole('button', { name: 'ほかの端末をログアウト' }).click()
+    await expect(admin.getByText('この端末以外をログアウトしました。')).toBeVisible()
+    await coach.goto('/')
+    await expect(coach).toHaveURL(/\/login/)
+  })
+
+  test('お子さんを登録していない保護者：本人のホームと、管理者のメンバー一覧で分かる', async ({ browser }) => {
+    const { page: fresh } = await newUser(browser)
+    await fresh.goto(invitePath)
+    await fresh.locator('input[name=name]').fill('未登録の母')
+    await fresh.getByRole('button', { name: 'この名前で参加' }).click()
+    await agreeTerms(fresh)
+    await finishOnboarding(fresh)
+    await fresh.goto('/')
+    await expect(fresh.getByRole('heading', { name: 'お子さんの情報が登録されていません' })).toBeVisible()
+    await fresh.getByRole('link', { name: 'お子さんを登録する' }).click()
+    await expect(fresh).toHaveURL(/\/children/)
+
+    await admin.goto('/admin/members')
+    await expect(admin.getByText(/お子さんを登録していない保護者が/)).toBeVisible()
+    await expect(admin.locator('li').filter({ hasText: '未登録の母' }).getByText('お子さん未登録')).toBeVisible()
   })
 })
